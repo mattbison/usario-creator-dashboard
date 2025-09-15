@@ -14,7 +14,7 @@ function App() {
     {
       id: 'team',
       title: 'Team Portal',
-      description: 'For VAs to add influencers and manage prospects',
+      description: 'Source and manage influencers',
       icon: Users,
       color: 'bg-blue-500',
       component: TeamPortal
