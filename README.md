@@ -4,7 +4,7 @@ A comprehensive web application designed for influencer marketing agencies to ma
 
 ## 🚀 Features
 
-### Team Portal (VA Workflow)
+### Team Portal (Source influencers)
 - **Client Selection**: Choose from assigned client accounts
 - **Influencer Management**: Add influencers with comprehensive details
 - **Bulk Upload**: CSV import with duplicate detection
@@ -359,7 +359,7 @@ This project is licensed under the MIT License. See the LICENSE file for details
 
 ---
 
-**Usario Creators** - Streamlining influencer marketing for agencies and brands.
+**Usario Partners | Creators** - Streamlining influencer marketing for agencies and brands.
 
 For questions or support, please contact the development team.
 
