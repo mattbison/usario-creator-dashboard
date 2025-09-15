@@ -388,7 +388,7 @@ const TeamPortal = () => {
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px] p-6">
                   <DialogHeader>
-                    <DialogTitle className="text-2xl font-bold">Prospects Submitted!</CardTitle>
+                    <DialogTitle className="text-2xl font-bold">Prospects Submitted!</DialogTitle>
                     <DialogDescription className="text-base text-gray-600">
                       Your new prospects have been submitted. Click below to notify the admin.
                     </DialogDescription>
