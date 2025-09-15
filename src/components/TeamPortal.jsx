@@ -364,7 +364,7 @@ const TeamPortal = () => {
       {alert && <Notification message={alert.message} type={alert.type} title={alert.title} onClose={() => setAlert(null)} />}
 
       <div className="max-w-6xl mx-auto space-y-8">
-        <h1 className="text-4xl font-extrabold text-gray-900 mb-8">Team Portal</h1>
+        <h1 className="text-4xl font-extrabold text-gray-900 mb-8">Usario Partners: Team Portal</h1>
 
         <Card className="p-6 shadow-lg rounded-xl">
           <CardHeader className="pb-4">
