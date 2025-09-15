@@ -13,7 +13,7 @@ function App() {
   const portals = [
     {
       id: 'team',
-      title: 'Usario Partners | Team Portal',
+      title: 'Team Portal',
       description: 'For VAs to add influencers and manage prospects',
       icon: Users,
       color: 'bg-blue-500',
@@ -21,7 +21,7 @@ function App() {
     },
     {
       id: 'admin',
-      title: 'Usario Partners | Admin Portal',
+      title: 'Admin Portal',
       description: 'Full access to manage everything',
       icon: Shield,
       color: 'bg-red-500',
@@ -29,7 +29,7 @@ function App() {
     },
     {
       id: 'client',
-      title: 'Usario Parterns | Client Portal',
+      title: 'Client Portal',
       description: 'View stats and analytics',
       icon: Building2,
       color: 'bg-green-500',
