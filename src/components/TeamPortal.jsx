@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx';
 import { Textarea } from '@/components/ui/textarea.jsx';
 import { CheckCircle, AlertTriangle, Info, Upload, History, Mail, UserPlus, Send, Trash2, Edit } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog.jsx';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog.jsx';
 
 // Custom Notification Component
 const Notification = ({ message, type, title, onClose }) => {
@@ -533,12 +533,10 @@ const TeamPortal = () => {
                   ))}
                 </div>
               )}
-              <Dialog open={isSubmitProspectsDialogOpen} onOpenChange={setIsSubmitProspectsDialogOpen}> {/* Keep dialog open until explicitly closed by user */}
-                <DialogTrigger asChild>
-                  <Button onClick={submitTodaysProspects} disabled={todaysInfluencers.length === 0} className="w-full py-3 text-lg font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors duration-200">
-                    <Send className="h-5 w-5 mr-2" /> Submit New Prospects
-                  </Button>
-                </DialogTrigger>
+              <Dialog open={isSubmitProspectsDialogOpen} onOpenChange={setIsSubmitProspectsDialogOpen}> { /* Keep dialog open until explicitly closed by user */ }
+                <Button onClick={submitTodaysProspects} disabled={todaysInfluencers.length === 0} className="w-full py-3 text-lg font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors duration-200">
+                  <Send className="h-5 w-5 mr-2" /> Submit New Prospects
+                </Button>
                 <DialogContent className="sm:max-w-[425px] p-6">
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-bold">Prospects Submitted!</DialogTitle>
@@ -563,7 +561,7 @@ const TeamPortal = () => {
                   </div>
                   <DialogFooter>
                     <DialogClose asChild>
-                      <Button type="button" variant="secondary" className="py-3 text-lg" onClick={handleDialogClose}> {/* Call handleDialogClose on explicit close */}
+                      <Button type="button" variant="secondary" className="py-3 text-lg" onClick={handleDialogClose}> { /* Call handleDialogClose on explicit close */ }
                         Close
                       </Button>
                     </DialogClose>
@@ -577,7 +575,7 @@ const TeamPortal = () => {
             <CardHeader className="pb-4">
               <CardTitle className="text-2xl font-bold">Submission History</CardTitle>
               <CardDescription className="text-base text-gray-600">View all previously submitted influencer prospects.</CardDescription>
-            </CardDescription>
+            </CardHeader>
             <CardContent className="space-y-4">
               {submittedInfluencers.length === 0 ? (
                 <p className="text-gray-500 text-center py-8 text-lg">No submissions yet.</p>
