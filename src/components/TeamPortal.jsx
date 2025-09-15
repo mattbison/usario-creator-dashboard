@@ -533,7 +533,7 @@ const TeamPortal = () => {
                   ))}
                 </div>
               )}
-              <Dialog open={isSubmitProspectsDialogOpen} onOpenChange={handleDialogClose}> {/* Use handleDialogClose here */}
+              <Dialog open={isSubmitProspectsDialogOpen} onOpenChange={setIsSubmitProspectsDialogOpen}> {/* Keep dialog open until explicitly closed by user */}
                 <DialogTrigger asChild>
                   <Button onClick={submitTodaysProspects} disabled={todaysInfluencers.length === 0} className="w-full py-3 text-lg font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors duration-200">
                     <Send className="h-5 w-5 mr-2" /> Submit New Prospects
@@ -556,13 +556,14 @@ const TeamPortal = () => {
                                  focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2\
                                  disabled:pointer-events-none disabled:opacity-50\
                                  bg-blue-500 text-white hover:bg-blue-600 h-12 px-6 py-3"
+                      onClick={() => showNotification('Email client opened. Please send the email to notify the admin.', 'info', 'Email Notification')}
                     >
                       <Mail className="h-5 w-5 mr-2" /> Notify Admin by Email
                     </a>
                   </div>
                   <DialogFooter>
                     <DialogClose asChild>
-                      <Button type="button" variant="secondary" className="py-3 text-lg">
+                      <Button type="button" variant="secondary" className="py-3 text-lg" onClick={handleDialogClose}> {/* Call handleDialogClose on explicit close */}
                         Close
                       </Button>
                     </DialogClose>
@@ -576,7 +577,7 @@ const TeamPortal = () => {
             <CardHeader className="pb-4">
               <CardTitle className="text-2xl font-bold">Submission History</CardTitle>
               <CardDescription className="text-base text-gray-600">View all previously submitted influencer prospects.</CardDescription>
-            </CardHeader>
+            </CardDescription>
             <CardContent className="space-y-4">
               {submittedInfluencers.length === 0 ? (
                 <p className="text-gray-500 text-center py-8 text-lg">No submissions yet.</p>
