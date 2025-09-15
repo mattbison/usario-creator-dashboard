@@ -78,6 +78,7 @@ const TeamPortal = () => {
   const [bulkUploadErrors, setBulkUploadErrors] = useState([]);
   const [isSubmitProspectsDialogOpen, setIsSubmitProspectsDialogOpen] = useState(false);
   const [editingInfluencerId, setEditingInfluencerId] = useState(null); // For edit functionality
+  const [prospectsToNotify, setProspectsToNotify] = useState([]); // New state for notification content
 
   const clients = [
     { id: 'client1', name: 'TechBrand Co.' },
@@ -265,20 +266,29 @@ const TeamPortal = () => {
       return;
     }
 
+    // Store prospects for notification email before clearing
+    setProspectsToNotify([...todaysInfluencers]);
+
     const updatedTodaysInfluencers = todaysInfluencers.map(inf => ({ ...inf, submitted: true }));
     setSubmittedInfluencers(prev => [...prev, ...updatedTodaysInfluencers]);
     setInfluencers(prev => prev.map(inf => 
       updatedTodaysInfluencers.some(submittedInf => submittedInf.id === inf.id) ? { ...inf, submitted: true } : inf
     ));
-    setTodaysInfluencers([]);
+    
     showNotification(`${updatedTodaysInfluencers.length} prospects successfully submitted! Admin has been notified.`, 'success', 'Submission Complete');
     setIsSubmitProspectsDialogOpen(true); // Open the dialog for admin notification
+  };
+
+  const handleDialogClose = () => {
+    setTodaysInfluencers([]); // Clear the list only when the dialog is explicitly closed
+    setProspectsToNotify([]); // Clear the notification content
+    setIsSubmitProspectsDialogOpen(false);
   };
 
   const generateMailtoLink = () => {
     const adminEmail = 'mattbison@apimedia.io';
     const subject = 'New Influencer Prospects Ready for Review';
-    const body = `Hello Admin,\n\n${todaysInfluencers.length} new influencer prospects have been submitted for review. Please check the Admin Dashboard.\n\nDetails:\n${todaysInfluencers.map(inf => `- ${inf.name} (${inf.businessEmail}) for ${clients.find(c => c.id === inf.clientId)?.name}`).join('\n')}\n\nThank you!`;
+    const body = `Hello Admin,\n\n${prospectsToNotify.length} new influencer prospects have been submitted for review. Please check the Admin Dashboard.\n\nDetails:\n${prospectsToNotify.map(inf => `- ${inf.name} (${inf.businessEmail}) for ${clients.find(c => c.id === inf.clientId)?.name}`).join('\n')}\n\nThank you!`;
     return `mailto:${adminEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
@@ -523,7 +533,7 @@ const TeamPortal = () => {
                   ))}
                 </div>
               )}
-              <Dialog open={isSubmitProspectsDialogOpen} onOpenChange={setIsSubmitProspectsDialogOpen}>
+              <Dialog open={isSubmitProspectsDialogOpen} onOpenChange={handleDialogClose}> {/* Use handleDialogClose here */}
                 <DialogTrigger asChild>
                   <Button onClick={submitTodaysProspects} disabled={todaysInfluencers.length === 0} className="w-full py-3 text-lg font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors duration-200">
                     <Send className="h-5 w-5 mr-2" /> Submit New Prospects
