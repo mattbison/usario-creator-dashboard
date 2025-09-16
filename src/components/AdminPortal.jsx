@@ -502,7 +502,7 @@ const AdminPortal = () => {
                           <h3 className="font-semibold text-lg text-gray-900">{va.name}</h3>
                           <p className="text-sm text-gray-600">Assigned Clients: 
                             {va.assignedClients.length > 0 
-                              ? va.assignedClients.map(clientId => getClientName(clientId)).join(', ') 
+                              ? va.assignedClients.map(clientId => getClientName(clientId)).join(', ')
                               : 'None'}
                           </p>
                         </div>
