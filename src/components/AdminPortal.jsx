@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { Label } from '@/components/ui/label.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
-import { Trash2, UserPlus, Users, Briefcase, History, CheckCircle, Clock, XCircle, Download, Info, AlertTriangle } from 'lucide-react';
+import { Trash2, Edit, UserPlus, Users, Briefcase, History, CheckCircle, Clock, XCircle, Download, PlusCircle, ChevronDown, ChevronUp, Info, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog.jsx';
 
 // Custom Notification Component (copied from TeamPortal for consistency)
@@ -56,20 +56,23 @@ const Notification = ({ message, type, title, onClose }) => {
 };
 
 const AdminPortal = () => {
-  const [influencers, setInfluencers] = useState([]); // Pending influencers
-  const [submittedInfluencers, setSubmittedInfluencers] = useState([]); // Submitted influencers
+  const [influencers, setInfluencers] = useState([]);
+  const [submittedInfluencers, setSubmittedInfluencers] = useState([]);
   const [vas, setVAs] = useState([]); // New state for VAs
   const [clients, setClients] = useState([
     { id: 'client1', name: 'TechBrand Co.' },
     { id: 'client2', name: 'Fashion Forward' },
     { id: 'client3', name: 'Fitness Plus' }
   ]);
+  const [selectedVa, setSelectedVa] = useState('');
   const [newVaName, setNewVaName] = useState('');
   const [vaToAssignClient, setVaToAssignClient] = useState(null);
   const [clientToAssign, setClientToAssign] = useState('');
   const [isAssignClientDialogOpen, setIsAssignClientDialogOpen] = useState(false);
   const [isAddVaDialogOpen, setIsAddVaDialogOpen] = useState(false);
   const [alert, setAlert] = useState(null); // For notifications
+  const [expandedSubmission, setExpandedSubmission] = useState(null); // For submission history
+  const [expandedInfluencerClients, setExpandedInfluencerClients] = useState({}); // For multiple clients per influencer
 
   useEffect(() => {
     const savedInfluencers = localStorage.getItem('influencers');
@@ -156,25 +159,63 @@ const AdminPortal = () => {
     showNotification(`Client '${clientName}' unassigned from '${vaName}'.`, 'success', 'Client Unassigned');
   };
 
+  const deleteInfluencer = (idToDelete) => {
+    const influencerName = influencers.find(inf => inf.id === idToDelete)?.name || submittedInfluencers.find(inf => inf.id === idToDelete)?.name || 'Influencer';
+    setInfluencers(prev => prev.filter(inf => inf.id !== idToDelete));
+    setSubmittedInfluencers(prev => prev.filter(inf => inf.id !== idToDelete));
+    showNotification(`${influencerName} deleted successfully.`, 'success', 'Influencer Deleted');
+  };
+
+  const changeInfluencerStatus = (influencerId, newStatus) => {
+    let updatedInfluencer = null;
+    setInfluencers(prev => prev.map(inf => {
+      if (inf.id === influencerId) {
+        updatedInfluencer = { ...inf, submitted: newStatus };
+        return updatedInfluencer;
+      }
+      return inf;
+    }));
+
+    if (updatedInfluencer) {
+      if (newStatus) {
+        // Move from pending to submitted
+        setSubmittedInfluencers(prev => [...prev, updatedInfluencer]);
+        setInfluencers(prev => prev.filter(inf => inf.id !== influencerId));
+      } else {
+        // Move from submitted to pending
+        setInfluencers(prev => [...prev, updatedInfluencer]);
+        setSubmittedInfluencers(prev => prev.filter(inf => inf.id !== influencerId));
+      }
+      showNotification(`Influencer status updated to ${newStatus ? 'Submitted' : 'Pending'}.`, 'success', 'Status Updated');
+    }
+  };
+
   const exportAllInfluencers = () => {
     const allInfluencers = [...influencers, ...submittedInfluencers];
     if (allInfluencers.length === 0) {
       showNotification('No influencers to export.', 'warning', 'Export Failed');
       return;
     }
-    const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Notes", "Client", "Date Added", "Status"];
-    const rows = allInfluencers.map(inf => [
-      inf.name,
-      inf.businessEmail,
-      inf.instagramFollowers,
-      inf.tiktokFollowers,
-      inf.averageViews,
-      inf.engagementRate,
-      inf.notes,
-      getClientName(inf.clientId),
-      inf.dateAdded,
-      inf.submitted ? "Submitted" : "Pending"
-    ]);
+    const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Instagram URL", "TikTok URL", "Notes", "Client(s)", "Date Added", "Status"];
+    const rows = allInfluencers.map(inf => {
+      // Handle multiple clients for an influencer if it were implemented more robustly
+      // For now, it's one client per influencer as per current data structure
+      const clientNames = getClientName(inf.clientId);
+      return [
+        inf.name,
+        inf.businessEmail,
+        inf.instagramFollowers,
+        inf.tiktokFollowers,
+        inf.averageViews,
+        inf.engagementRate,
+        inf.instagramUrl,
+        inf.tiktokUrl,
+        inf.notes,
+        clientNames,
+        inf.dateAdded,
+        inf.submitted ? "Submitted" : "Pending"
+      ];
+    });
 
     let csvContent = headers.join(",") + "\n";
     rows.forEach(row => {
@@ -196,19 +237,24 @@ const AdminPortal = () => {
       showNotification('No submitted influencers to export.', 'warning', 'Export Failed');
       return;
     }
-    const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Notes", "Client", "Date Added", "Status"];
-    const rows = submittedInfluencers.map(inf => [
-      inf.name,
-      inf.businessEmail,
-      inf.instagramFollowers,
-      inf.tiktokFollowers,
-      inf.averageViews,
-      inf.engagementRate,
-      inf.notes,
-      getClientName(inf.clientId),
-      inf.dateAdded,
-      inf.submitted ? "Submitted" : "Pending"
-    ]);
+    const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Instagram URL", "TikTok URL", "Notes", "Client(s)", "Date Added", "Status"];
+    const rows = submittedInfluencers.map(inf => {
+      const clientNames = getClientName(inf.clientId);
+      return [
+        inf.name,
+        inf.businessEmail,
+        inf.instagramFollowers,
+        inf.tiktokFollowers,
+        inf.averageViews,
+        inf.engagementRate,
+        inf.instagramUrl,
+        inf.tiktokUrl,
+        inf.notes,
+        clientNames,
+        inf.dateAdded,
+        inf.submitted ? "Submitted" : "Pending"
+      ];
+    });
 
     let csvContent = headers.join(",") + "\n";
     rows.forEach(row => {
@@ -231,19 +277,24 @@ const AdminPortal = () => {
       showNotification('No pending influencers to export.', 'warning', 'Export Failed');
       return;
     }
-    const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Notes", "Client", "Date Added", "Status"];
-    const rows = pendingInfluencers.map(inf => [
-      inf.name,
-      inf.businessEmail,
-      inf.instagramFollowers,
-      inf.tiktokFollowers,
-      inf.averageViews,
-      inf.engagementRate,
-      inf.notes,
-      getClientName(inf.clientId),
-      inf.dateAdded,
-      inf.submitted ? "Submitted" : "Pending"
-    ]);
+    const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Instagram URL", "TikTok URL", "Notes", "Client(s)", "Date Added", "Status"];
+    const rows = pendingInfluencers.map(inf => {
+      const clientNames = getClientName(inf.clientId);
+      return [
+        inf.name,
+        inf.businessEmail,
+        inf.instagramFollowers,
+        inf.tiktokFollowers,
+        inf.averageViews,
+        inf.engagementRate,
+        inf.instagramUrl,
+        inf.tiktokUrl,
+        inf.notes,
+        clientNames,
+        inf.dateAdded,
+        inf.submitted ? "Submitted" : "Pending"
+      ];
+    });
 
     let csvContent = headers.join(",") + "\n";
     rows.forEach(row => {
@@ -260,11 +311,29 @@ const AdminPortal = () => {
     showNotification('Pending influencers exported successfully!', 'success', 'Export Complete');
   };
 
+  // Group submitted influencers by VA and date for history tab
+  const getGroupedSubmissions = () => {
+    const grouped = submittedInfluencers.reduce((acc, inf) => {
+      // Assuming VA ID is stored with influencer on submission, or default to 'unknown'
+      const vaId = inf.vaId || 'unknown'; 
+      const date = inf.dateAdded; // Use dateAdded as submission date
+      const key = `${vaId}-${date}`;
+      if (!acc[key]) {
+        acc[key] = { id: key, vaId, date, influencers: [] };
+      }
+      acc[key].influencers.push(inf);
+      return acc;
+    }, {});
+    return Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
+  };
+
+  const submissionHistory = getGroupedSubmissions();
+
   // Aggregate influencers for 'All Influencers' tab to handle multiple clients
-  const aggregatedInfluencers = [...influencers, ...submittedInfluencers].reduce((acc, inf) => {
+  const aggregatedInfluencers = influencers.concat(submittedInfluencers).reduce((acc, inf) => {
     const existing = acc.find(item => item.businessEmail === inf.businessEmail);
     if (existing) {
-      // Add client if not already present in clientIds array
+      // Add client if not already present
       if (!existing.clientIds.includes(inf.clientId)) {
         existing.clientIds.push(inf.clientId);
       }
@@ -273,7 +342,6 @@ const AdminPortal = () => {
         existing.submitted = true;
       }
     } else {
-      // Initialize clientIds as an array
       acc.push({ ...inf, clientIds: [inf.clientId] });
     }
     return acc;
