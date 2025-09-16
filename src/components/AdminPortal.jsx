@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { Label } from '@/components/ui/label.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
-import { Trash2, UserPlus, Users, Briefcase, History, CheckCircle, XCircle, Download, Info, AlertTriangle, ChevronDown, ChevronUp, PlusCircle, Edit } from 'lucide-react';
+import { Trash2, UserPlus, Users, Briefcase, History, CheckCircle, XCircle, Download, Info, AlertTriangle, ChevronDown, ChevronUp, PlusCircle, Edit, Filter } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog.jsx';
 
 // Custom Notification Component (copied from TeamPortal for consistency)
@@ -74,6 +74,10 @@ const AdminPortal = () => {
   const [expandedSubmission, setExpandedSubmission] = useState(null); // For submission history
   const [sortBy, setSortBy] = useState(null);
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
+
+  // New state for export filters
+  const [exportVaFilter, setExportVaFilter] = useState('');
+  const [exportClientFilter, setExportClientFilter] = useState('');
 
   useEffect(() => {
     const savedInfluencers = localStorage.getItem('influencers');
@@ -251,6 +255,25 @@ const AdminPortal = () => {
 
   const submissionHistory = getGroupedSubmissions();
 
+  // Filtered influencers for export
+  const getFilteredInfluencers = () => {
+    let filtered = [...influencers];
+
+    if (exportVaFilter) {
+      filtered = filtered.filter(inf => inf.vaId === exportVaFilter);
+    }
+    if (exportClientFilter) {
+      filtered = filtered.filter(inf => (inf.clientIds || [inf.clientId]).includes(exportClientFilter));
+    }
+    return filtered;
+  };
+
+  const handleClearFilters = () => {
+    setExportVaFilter('');
+    setExportClientFilter('');
+    showNotification('Export filters cleared.', 'info', 'Filters Cleared');
+  };
+
   // Sorting logic for All Influencers table
   const sortedInfluencers = [...influencers].sort((a, b) => {
     if (!sortBy) return 0;
@@ -266,7 +289,7 @@ const AdminPortal = () => {
     if (typeof valA === 'string') {
       return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
     } else if (typeof valA === 'number') {
-      return sortOrder === 'asc' ? valA - valB : valB - a[sortBy];
+      return sortOrder === 'asc' ? valA - valB : valB - valA;
     }
     return 0;
   });
@@ -577,11 +600,48 @@ const AdminPortal = () => {
           <TabsContent value="dataExport" className="mt-6 p-6 bg-white rounded-xl shadow-lg">
             <CardHeader className="pb-4">
               <CardTitle className="text-2xl font-bold">Data Export</CardTitle>
-              <CardDescription className="text-base text-gray-600">Download your influencer data in CSV format.</CardDescription>
+              <CardDescription className="text-base text-gray-600">Download your influencer data in CSV format with filters.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button onClick={() => exportInfluencersToCsv(influencers, 'all_influencers.csv')} className="w-full py-3 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200">
-                <Download className="h-5 w-5 mr-2" /> Export All Influencers (CSV)
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="exportVaFilter">Filter by VA</Label>
+                  <Select value={exportVaFilter} onValueChange={setExportVaFilter}>
+                    <SelectTrigger id="exportVaFilter">
+                      <SelectValue placeholder="Select a VA (Optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All VAs</SelectItem>
+                      {vas.map(va => (
+                        <SelectItem key={va.id} value={va.id}>
+                          {va.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="exportClientFilter">Filter by Client</Label>
+                  <Select value={exportClientFilter} onValueChange={setExportClientFilter}>
+                    <SelectTrigger id="exportClientFilter">
+                      <SelectValue placeholder="Select a Client (Optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All Clients</SelectItem>
+                      {clients.map(client => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button onClick={handleClearFilters} variant="outline" className="w-full py-3 text-lg font-semibold">
+                <Filter className="h-5 w-5 mr-2" /> Clear Filters
+              </Button>
+              <Button onClick={() => exportInfluencersToCsv(getFilteredInfluencers(), 'filtered_influencers.csv')} className="w-full py-3 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200">
+                <Download className="h-5 w-5 mr-2" /> Export Filtered Influencers (CSV)
               </Button>
             </CardContent>
           </TabsContent>
