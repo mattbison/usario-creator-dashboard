@@ -76,8 +76,8 @@ const AdminPortal = () => {
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
 
   // New state for export filters
-  const [exportVaFilter, setExportVaFilter] = useState('');
-  const [exportClientFilter, setExportClientFilter] = useState('');
+  const [exportVaFilter, setExportVaFilter] = useState('all'); // Default to 'all'
+  const [exportClientFilter, setExportClientFilter] = useState('all'); // Default to 'all'
 
   useEffect(() => {
     const savedInfluencers = localStorage.getItem('influencers');
@@ -259,18 +259,18 @@ const AdminPortal = () => {
   const getFilteredInfluencers = () => {
     let filtered = [...influencers];
 
-    if (exportVaFilter) {
+    if (exportVaFilter && exportVaFilter !== 'all') {
       filtered = filtered.filter(inf => inf.vaId === exportVaFilter);
     }
-    if (exportClientFilter) {
+    if (exportClientFilter && exportClientFilter !== 'all') {
       filtered = filtered.filter(inf => (inf.clientIds || [inf.clientId]).includes(exportClientFilter));
     }
     return filtered;
   };
 
   const handleClearFilters = () => {
-    setExportVaFilter('');
-    setExportClientFilter('');
+    setExportVaFilter('all');
+    setExportClientFilter('all');
     showNotification('Export filters cleared.', 'info', 'Filters Cleared');
   };
 
@@ -611,7 +611,7 @@ const AdminPortal = () => {
                       <SelectValue placeholder="Select a VA (Optional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All VAs</SelectItem>
+                      <SelectItem value="all">All VAs</SelectItem>
                       {vas.map(va => (
                         <SelectItem key={va.id} value={va.id}>
                           {va.name}
@@ -627,7 +627,7 @@ const AdminPortal = () => {
                       <SelectValue placeholder="Select a Client (Optional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Clients</SelectItem>
+                      <SelectItem value="all">All Clients</SelectItem>
                       {clients.map(client => (
                         <SelectItem key={client.id} value={client.id}>
                           {client.name}
