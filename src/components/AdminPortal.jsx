@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { Label } from '@/components/ui/label.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
-import { Trash2, Edit, UserPlus, Users, Briefcase, History, CheckCircle, Clock, XCircle, Download, PlusCircle, ChevronDown, ChevronUp, Info, AlertTriangle } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog.jsx';
+import { Trash2, UserPlus, Users, Briefcase, History, CheckCircle, Clock, XCircle, Download, Info, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog.jsx';
 
 // Custom Notification Component (copied from TeamPortal for consistency)
 const Notification = ({ message, type, title, onClose }) => {
@@ -56,15 +56,14 @@ const Notification = ({ message, type, title, onClose }) => {
 };
 
 const AdminPortal = () => {
-  const [influencers, setInfluencers] = useState([]);
-  const [submittedInfluencers, setSubmittedInfluencers] = useState([]);
+  const [influencers, setInfluencers] = useState([]); // Pending influencers
+  const [submittedInfluencers, setSubmittedInfluencers] = useState([]); // Submitted influencers
   const [vas, setVAs] = useState([]); // New state for VAs
   const [clients, setClients] = useState([
     { id: 'client1', name: 'TechBrand Co.' },
     { id: 'client2', name: 'Fashion Forward' },
     { id: 'client3', name: 'Fitness Plus' }
   ]);
-  const [selectedVa, setSelectedVa] = useState('');
   const [newVaName, setNewVaName] = useState('');
   const [vaToAssignClient, setVaToAssignClient] = useState(null);
   const [clientToAssign, setClientToAssign] = useState('');
@@ -198,9 +197,8 @@ const AdminPortal = () => {
     }
     const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Instagram URL", "TikTok URL", "Notes", "Client(s)", "Date Added", "Status"];
     const rows = allInfluencers.map(inf => {
-      // Handle multiple clients for an influencer if it were implemented more robustly
-      // For now, it's one client per influencer as per current data structure
-      const clientNames = getClientName(inf.clientId);
+      // Ensure clientIds is an array, even if only one clientId is present
+      const clientNames = (inf.clientIds || [inf.clientId]).map(id => getClientName(id)).join(', ');
       return [
         inf.name,
         inf.businessEmail,
@@ -239,7 +237,7 @@ const AdminPortal = () => {
     }
     const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Instagram URL", "TikTok URL", "Notes", "Client(s)", "Date Added", "Status"];
     const rows = submittedInfluencers.map(inf => {
-      const clientNames = getClientName(inf.clientId);
+      const clientNames = (inf.clientIds || [inf.clientId]).map(id => getClientName(id)).join(', ');
       return [
         inf.name,
         inf.businessEmail,
@@ -279,7 +277,7 @@ const AdminPortal = () => {
     }
     const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Instagram URL", "TikTok URL", "Notes", "Client(s)", "Date Added", "Status"];
     const rows = pendingInfluencers.map(inf => {
-      const clientNames = getClientName(inf.clientId);
+      const clientNames = (inf.clientIds || [inf.clientId]).map(id => getClientName(id)).join(', ');
       return [
         inf.name,
         inf.businessEmail,
@@ -314,7 +312,7 @@ const AdminPortal = () => {
   // Group submitted influencers by VA and date for history tab
   const getGroupedSubmissions = () => {
     const grouped = submittedInfluencers.reduce((acc, inf) => {
-      // Assuming VA ID is stored with influencer on submission, or default to 'unknown'
+      // Ensure vaId is present, default to 'unknown' if not
       const vaId = inf.vaId || 'unknown'; 
       const date = inf.dateAdded; // Use dateAdded as submission date
       const key = `${vaId}-${date}`;
@@ -330,10 +328,10 @@ const AdminPortal = () => {
   const submissionHistory = getGroupedSubmissions();
 
   // Aggregate influencers for 'All Influencers' tab to handle multiple clients
-  const aggregatedInfluencers = influencers.concat(submittedInfluencers).reduce((acc, inf) => {
+  const aggregatedInfluencers = [...influencers, ...submittedInfluencers].reduce((acc, inf) => {
     const existing = acc.find(item => item.businessEmail === inf.businessEmail);
     if (existing) {
-      // Add client if not already present
+      // Add client if not already present in clientIds array
       if (!existing.clientIds.includes(inf.clientId)) {
         existing.clientIds.push(inf.clientId);
       }
@@ -342,6 +340,7 @@ const AdminPortal = () => {
         existing.submitted = true;
       }
     } else {
+      // Initialize clientIds as an array
       acc.push({ ...inf, clientIds: [inf.clientId] });
     }
     return acc;
