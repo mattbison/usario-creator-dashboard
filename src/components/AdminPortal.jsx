@@ -5,8 +5,11 @@ import { Button } from '@/components/ui/button.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { Label } from '@/components/ui/label.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
-import { Trash2, UserPlus, Users, Briefcase, History, CheckCircle, XCircle, Download, Info, AlertTriangle, ChevronDown, ChevronUp, PlusCircle, Edit, Filter } from 'lucide-react';
+import { Trash2, UserPlus, Users, Briefcase, History, CheckCircle, XCircle, Download, Info, AlertTriangle, ChevronDown, ChevronUp, PlusCircle, Edit, Filter, CalendarDays } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog.jsx';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.jsx';
+import { Calendar } from '@/components/ui/calendar.jsx';
+import { format } from 'date-fns';
 
 // Custom Notification Component (copied from TeamPortal for consistency)
 const Notification = ({ message, type, title, onClose }) => {
@@ -78,6 +81,7 @@ const AdminPortal = () => {
   // New state for export filters
   const [exportVaFilter, setExportVaFilter] = useState('all'); // Default to 'all'
   const [exportClientFilter, setExportClientFilter] = useState('all'); // Default to 'all'
+  const [exportDateFilter, setExportDateFilter] = useState(null); // For date filtering
 
   useEffect(() => {
     const savedInfluencers = localStorage.getItem('influencers');
@@ -183,7 +187,7 @@ const AdminPortal = () => {
     // Remove client from all VAs
     setVAs(prev => prev.map(va => ({ ...va, assignedClients: va.assignedClients.filter(id => id !== clientId) })));
     // Remove client from all influencers
-    setInfluencers(prev => prev.filter(inf => (inf.clientIds || [inf.clientId]).includes(clientId)));
+    setInfluencers(prev => prev.filter(inf => !(inf.clientIds || [inf.clientId]).includes(clientId)));
     setClients(prev => prev.filter(client => client.id !== clientId));
     showNotification(`Client '${clientName}' and associated data deleted.`, 'success', 'Client Deleted');
   };
@@ -265,16 +269,30 @@ const AdminPortal = () => {
     if (exportClientFilter && exportClientFilter !== 'all') {
       filtered = filtered.filter(inf => (inf.clientIds || [inf.clientId]).includes(exportClientFilter));
     }
+    if (exportDateFilter) {
+      const formattedDate = format(exportDateFilter, 'MM/dd/yyyy');
+      filtered = filtered.filter(inf => inf.dateAdded === formattedDate);
+    }
     return filtered;
   };
 
   const handleClearFilters = () => {
     setExportVaFilter('all');
     setExportClientFilter('all');
+    setExportDateFilter(null);
     showNotification('Export filters cleared.', 'info', 'Filters Cleared');
   };
 
   // Sorting logic for All Influencers table
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
+
   const sortedInfluencers = [...influencers].sort((a, b) => {
     if (!sortBy) return 0;
 
@@ -603,7 +621,7 @@ const AdminPortal = () => {
               <CardDescription className="text-base text-gray-600">Download your influencer data in CSV format with filters.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="exportVaFilter">Filter by VA</Label>
                   <Select value={exportVaFilter} onValueChange={setExportVaFilter}>
@@ -635,6 +653,30 @@ const AdminPortal = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <Label htmlFor="exportDateFilter">Filter by Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={
+                          `w-full justify-start text-left font-normal ${!exportDateFilter && "text-muted-foreground"}`
+                        }
+                      >
+                        <CalendarDays className="mr-2 h-4 w-4" />
+                        {exportDateFilter ? format(exportDateFilter, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={exportDateFilter}
+                        onSelect={setExportDateFilter}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
               <Button onClick={handleClearFilters} variant="outline" className="w-full py-3 text-lg font-semibold">
