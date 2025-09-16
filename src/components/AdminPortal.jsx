@@ -179,7 +179,7 @@ const AdminPortal = () => {
     // Remove client from all VAs
     setVAs(prev => prev.map(va => ({ ...va, assignedClients: va.assignedClients.filter(id => id !== clientId) })));
     // Remove client from all influencers
-    setInfluencers(prev => prev.filter(inf => inf.clientId !== clientId));
+    setInfluencers(prev => prev.filter(inf => (inf.clientIds || [inf.clientId]).includes(clientId)));
     setClients(prev => prev.filter(client => client.id !== clientId));
     showNotification(`Client '${clientName}' and associated data deleted.`, 'success', 'Client Deleted');
   };
@@ -266,19 +266,10 @@ const AdminPortal = () => {
     if (typeof valA === 'string') {
       return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
     } else if (typeof valA === 'number') {
-      return sortOrder === 'asc' ? valA - valB : valB - valA;
+      return sortOrder === 'asc' ? valA - valB : valB - a[sortBy];
     }
     return 0;
   });
-
-  const handleSort = (column) => {
-    if (sortBy === column) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(column);
-      setSortOrder('asc');
-    }
-  };
 
   // Overview Stats
   const totalUniqueInfluencersCount = influencers.length;
@@ -315,7 +306,7 @@ const AdminPortal = () => {
         </div>
 
         <Tabs defaultValue="allInfluencers" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 h-14 bg-gray-200 rounded-xl p-1">
+          <TabsList className="grid w-full grid-cols-5 h-14 bg-gray-200 rounded-xl p-1">
             <TabsTrigger value="allInfluencers" className="text-lg font-medium data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-700 rounded-lg transition-all duration-200">
               <Users className="h-5 w-5 mr-2" /> All Influencers
             </TabsTrigger>
@@ -327,6 +318,9 @@ const AdminPortal = () => {
             </TabsTrigger>
             <TabsTrigger value="submissionHistory" className="text-lg font-medium data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-700 rounded-lg transition-all duration-200">
               <History className="h-5 w-5 mr-2" /> Submission History
+            </TabsTrigger>
+            <TabsTrigger value="dataExport" className="text-lg font-medium data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-700 rounded-lg transition-all duration-200">
+              <Download className="h-5 w-5 mr-2" /> Data Export
             </TabsTrigger>
           </TabsList>
 
