@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { Label } from '@/components/ui/label.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
-import { Trash2, UserPlus, Users, Briefcase, History, CheckCircle, Clock, XCircle, Download, Info, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trash2, UserPlus, Users, Briefcase, History, CheckCircle, XCircle, Download, Info, AlertTriangle, ChevronDown, ChevronUp, PlusCircle, Edit } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog.jsx';
 
 // Custom Notification Component (copied from TeamPortal for consistency)
@@ -56,31 +56,33 @@ const Notification = ({ message, type, title, onClose }) => {
 };
 
 const AdminPortal = () => {
-  const [influencers, setInfluencers] = useState([]); // Pending influencers
-  const [submittedInfluencers, setSubmittedInfluencers] = useState([]); // Submitted influencers
-  const [vas, setVAs] = useState([]); // New state for VAs
+  const [influencers, setInfluencers] = useState([]); // All influencers in the system
+  const [vas, setVAs] = useState([]); // Virtual Assistants
   const [clients, setClients] = useState([
     { id: 'client1', name: 'TechBrand Co.' },
     { id: 'client2', name: 'Fashion Forward' },
     { id: 'client3', name: 'Fitness Plus' }
   ]);
   const [newVaName, setNewVaName] = useState('');
+  const [newClientName, setNewClientName] = useState('');
   const [vaToAssignClient, setVaToAssignClient] = useState(null);
   const [clientToAssign, setClientToAssign] = useState('');
   const [isAssignClientDialogOpen, setIsAssignClientDialogOpen] = useState(false);
   const [isAddVaDialogOpen, setIsAddVaDialogOpen] = useState(false);
+  const [isAddClientDialogOpen, setIsAddClientDialogOpen] = useState(false);
   const [alert, setAlert] = useState(null); // For notifications
   const [expandedSubmission, setExpandedSubmission] = useState(null); // For submission history
-  const [expandedInfluencerClients, setExpandedInfluencerClients] = useState({}); // For multiple clients per influencer
+  const [sortBy, setSortBy] = useState(null);
+  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
 
   useEffect(() => {
     const savedInfluencers = localStorage.getItem('influencers');
-    const savedSubmittedInfluencers = localStorage.getItem('submittedInfluencers');
     const savedVAs = localStorage.getItem('vas');
+    const savedClients = localStorage.getItem('clients');
 
     if (savedInfluencers) setInfluencers(JSON.parse(savedInfluencers));
-    if (savedSubmittedInfluencers) setSubmittedInfluencers(JSON.parse(savedSubmittedInfluencers));
     if (savedVAs) setVAs(JSON.parse(savedVAs));
+    if (savedClients) setClients(JSON.parse(savedClients));
   }, []);
 
   useEffect(() => {
@@ -88,12 +90,12 @@ const AdminPortal = () => {
   }, [influencers]);
 
   useEffect(() => {
-    localStorage.setItem('submittedInfluencers', JSON.stringify(submittedInfluencers));
-  }, [submittedInfluencers]);
-
-  useEffect(() => {
     localStorage.setItem('vas', JSON.stringify(vas));
   }, [vas]);
+
+  useEffect(() => {
+    localStorage.setItem('clients', JSON.stringify(clients));
+  }, [clients]);
 
   const showNotification = (message, type = 'info', title = '') => {
     setAlert({ message, type, title });
@@ -109,6 +111,7 @@ const AdminPortal = () => {
     return va ? va.name : 'Unknown VA';
   };
 
+  // VA Management Functions
   const addVa = () => {
     if (newVaName.trim() === '') {
       showNotification('VA name cannot be empty.', 'error', 'Error Adding VA');
@@ -158,46 +161,44 @@ const AdminPortal = () => {
     showNotification(`Client '${clientName}' unassigned from '${vaName}'.`, 'success', 'Client Unassigned');
   };
 
+  // Client Management Functions
+  const addClient = () => {
+    if (newClientName.trim() === '') {
+      showNotification('Client name cannot be empty.', 'error', 'Error Adding Client');
+      return;
+    }
+    const newClient = { id: Date.now().toString(), name: newClientName };
+    setClients(prev => [...prev, newClient]);
+    setNewClientName('');
+    setIsAddClientDialogOpen(false);
+    showNotification(`Client '${newClientName}' added successfully!`, 'success', 'Client Added');
+  };
+
+  const deleteClient = (clientId) => {
+    const clientName = getClientName(clientId);
+    // Remove client from all VAs
+    setVAs(prev => prev.map(va => ({ ...va, assignedClients: va.assignedClients.filter(id => id !== clientId) })));
+    // Remove client from all influencers
+    setInfluencers(prev => prev.filter(inf => inf.clientId !== clientId));
+    setClients(prev => prev.filter(client => client.id !== clientId));
+    showNotification(`Client '${clientName}' and associated data deleted.`, 'success', 'Client Deleted');
+  };
+
+  // Influencer Management Functions
   const deleteInfluencer = (idToDelete) => {
-    const influencerName = influencers.find(inf => inf.id === idToDelete)?.name || submittedInfluencers.find(inf => inf.id === idToDelete)?.name || 'Influencer';
+    const influencerName = influencers.find(inf => inf.id === idToDelete)?.name || 'Influencer';
     setInfluencers(prev => prev.filter(inf => inf.id !== idToDelete));
-    setSubmittedInfluencers(prev => prev.filter(inf => inf.id !== idToDelete));
     showNotification(`${influencerName} deleted successfully.`, 'success', 'Influencer Deleted');
   };
 
-  const changeInfluencerStatus = (influencerId, newStatus) => {
-    let updatedInfluencer = null;
-    setInfluencers(prev => prev.map(inf => {
-      if (inf.id === influencerId) {
-        updatedInfluencer = { ...inf, submitted: newStatus };
-        return updatedInfluencer;
-      }
-      return inf;
-    }));
-
-    if (updatedInfluencer) {
-      if (newStatus) {
-        // Move from pending to submitted
-        setSubmittedInfluencers(prev => [...prev, updatedInfluencer]);
-        setInfluencers(prev => prev.filter(inf => inf.id !== influencerId));
-      } else {
-        // Move from submitted to pending
-        setInfluencers(prev => [...prev, updatedInfluencer]);
-        setSubmittedInfluencers(prev => prev.filter(inf => inf.id !== influencerId));
-      }
-      showNotification(`Influencer status updated to ${newStatus ? 'Submitted' : 'Pending'}.`, 'success', 'Status Updated');
-    }
-  };
-
-  const exportAllInfluencers = () => {
-    const allInfluencers = [...influencers, ...submittedInfluencers];
-    if (allInfluencers.length === 0) {
+  // Data Export Functions
+  const exportInfluencersToCsv = (data, filename) => {
+    if (data.length === 0) {
       showNotification('No influencers to export.', 'warning', 'Export Failed');
       return;
     }
-    const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Instagram URL", "TikTok URL", "Notes", "Client(s)", "Date Added", "Status"];
-    const rows = allInfluencers.map(inf => {
-      // Ensure clientIds is an array, even if only one clientId is present
+    const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Instagram URL", "TikTok URL", "Notes", "Client(s)", "Date Added"];
+    const rows = data.map(inf => {
       const clientNames = (inf.clientIds || [inf.clientId]).map(id => getClientName(id)).join(', ');
       return [
         inf.name,
@@ -211,111 +212,34 @@ const AdminPortal = () => {
         inf.notes,
         clientNames,
         inf.dateAdded,
-        inf.submitted ? "Submitted" : "Pending"
       ];
     });
 
-    let csvContent = headers.join(",") + "\n";
+    let csvContent = headers.map(h => `"${h}"`).join(",") + "\n";
     rows.forEach(row => {
-      csvContent += row.map(item => `"${item}"`).join(",") + "\n";
+      csvContent += row.map(item => `"${String(item).replace(/"/g, '""')}"`).join(",") + "\n";
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', 'all_influencers.csv');
+    link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showNotification('All influencers exported successfully!', 'success', 'Export Complete');
+    showNotification(`${filename} exported successfully!`, 'success', 'Export Complete');
   };
 
-  const exportSubmittedInfluencers = () => {
-    if (submittedInfluencers.length === 0) {
-      showNotification('No submitted influencers to export.', 'warning', 'Export Failed');
-      return;
-    }
-    const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Instagram URL", "TikTok URL", "Notes", "Client(s)", "Date Added", "Status"];
-    const rows = submittedInfluencers.map(inf => {
-      const clientNames = (inf.clientIds || [inf.clientId]).map(id => getClientName(id)).join(', ');
-      return [
-        inf.name,
-        inf.businessEmail,
-        inf.instagramFollowers,
-        inf.tiktokFollowers,
-        inf.averageViews,
-        inf.engagementRate,
-        inf.instagramUrl,
-        inf.tiktokUrl,
-        inf.notes,
-        clientNames,
-        inf.dateAdded,
-        inf.submitted ? "Submitted" : "Pending"
-      ];
-    });
-
-    let csvContent = headers.join(",") + "\n";
-    rows.forEach(row => {
-      csvContent += row.map(item => `"${item}"`).join(",") + "\n";
-    });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', 'submitted_influencers.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showNotification('Submitted influencers exported successfully!', 'success', 'Export Complete');
-  };
-
-  const exportPendingInfluencers = () => {
-    const pendingInfluencers = influencers.filter(inf => !inf.submitted);
-    if (pendingInfluencers.length === 0) {
-      showNotification('No pending influencers to export.', 'warning', 'Export Failed');
-      return;
-    }
-    const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Instagram URL", "TikTok URL", "Notes", "Client(s)", "Date Added", "Status"];
-    const rows = pendingInfluencers.map(inf => {
-      const clientNames = (inf.clientIds || [inf.clientId]).map(id => getClientName(id)).join(', ');
-      return [
-        inf.name,
-        inf.businessEmail,
-        inf.instagramFollowers,
-        inf.tiktokFollowers,
-        inf.averageViews,
-        inf.engagementRate,
-        inf.instagramUrl,
-        inf.tiktokUrl,
-        inf.notes,
-        clientNames,
-        inf.dateAdded,
-        inf.submitted ? "Submitted" : "Pending"
-      ];
-    });
-
-    let csvContent = headers.join(",") + "\n";
-    rows.forEach(row => {
-      csvContent += row.map(item => `"${item}"`).join(",") + "\n";
-    });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', 'pending_influencers.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showNotification('Pending influencers exported successfully!', 'success', 'Export Complete');
-  };
-
-  // Group submitted influencers by VA and date for history tab
+  // Group influencers by VA and date for history tab
   const getGroupedSubmissions = () => {
-    const grouped = submittedInfluencers.reduce((acc, inf) => {
-      // Ensure vaId is present, default to 'unknown' if not
-      const vaId = inf.vaId || 'unknown'; 
-      const date = inf.dateAdded; // Use dateAdded as submission date
+    // Assuming influencers now have a vaId and dateAdded from TeamPortal submission
+    const grouped = influencers.reduce((acc, inf) => {
+      if (!inf.vaId || !inf.dateAdded) return acc; // Only process submitted influencers with VA info
+
+      const vaId = inf.vaId;
+      const date = inf.dateAdded;
       const key = `${vaId}-${date}`;
+
       if (!acc[key]) {
         acc[key] = { id: key, vaId, date, influencers: [] };
       }
@@ -327,28 +251,39 @@ const AdminPortal = () => {
 
   const submissionHistory = getGroupedSubmissions();
 
-  // Aggregate influencers for 'All Influencers' tab to handle multiple clients
-  const aggregatedInfluencers = [...influencers, ...submittedInfluencers].reduce((acc, inf) => {
-    const existing = acc.find(item => item.businessEmail === inf.businessEmail);
-    if (existing) {
-      // Add client if not already present in clientIds array
-      if (!existing.clientIds.includes(inf.clientId)) {
-        existing.clientIds.push(inf.clientId);
-      }
-      // Update status if any instance is submitted
-      if (inf.submitted) {
-        existing.submitted = true;
-      }
-    } else {
-      // Initialize clientIds as an array
-      acc.push({ ...inf, clientIds: [inf.clientId] });
-    }
-    return acc;
-  }, []);
+  // Sorting logic for All Influencers table
+  const sortedInfluencers = [...influencers].sort((a, b) => {
+    if (!sortBy) return 0;
 
-  const totalInfluencersCount = aggregatedInfluencers.length;
-  const totalSubmittedCount = aggregatedInfluencers.filter(inf => inf.submitted).length;
-  const totalPendingCount = aggregatedInfluencers.filter(inf => !inf.submitted).length;
+    let valA = a[sortBy];
+    let valB = b[sortBy];
+
+    if (sortBy === 'clientIds') {
+      valA = (a.clientIds || [a.clientId]).map(id => getClientName(id)).join(', ');
+      valB = (b.clientIds || [b.clientId]).map(id => getClientName(id)).join(', ');
+    }
+
+    if (typeof valA === 'string') {
+      return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    } else if (typeof valA === 'number') {
+      return sortOrder === 'asc' ? valA - valB : valB - valA;
+    }
+    return 0;
+  });
+
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
+
+  // Overview Stats
+  const totalUniqueInfluencersCount = influencers.length;
+  const totalClientsCount = clients.length;
+  const totalVAsCount = vas.length;
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -358,29 +293,23 @@ const AdminPortal = () => {
         <h1 className="text-4xl font-extrabold text-gray-900 mb-8">Usario Partners: Admin Portal</h1>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card className="p-6 shadow-lg rounded-xl bg-white border border-gray-200">
             <CardHeader className="pb-2">
               <CardDescription className="text-sm font-medium text-gray-500">Total Unique Influencers</CardDescription>
-              <CardTitle className="text-3xl font-bold text-gray-900">{totalInfluencersCount}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="p-6 shadow-lg rounded-xl bg-white border border-gray-200">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-sm font-medium text-gray-500">Submitted Influencers</CardDescription>
-              <CardTitle className="text-3xl font-bold text-gray-900">{totalSubmittedCount}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="p-6 shadow-lg rounded-xl bg-white border border-gray-200">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-sm font-medium text-gray-500">Pending Influencers</CardDescription>
-              <CardTitle className="text-3xl font-bold text-gray-900">{totalPendingCount}</CardTitle>
+              <CardTitle className="text-3xl font-bold text-gray-900">{totalUniqueInfluencersCount}</CardTitle>
             </CardHeader>
           </Card>
           <Card className="p-6 shadow-lg rounded-xl bg-white border border-gray-200">
             <CardHeader className="pb-2">
               <CardDescription className="text-sm font-medium text-gray-500">Total Clients</CardDescription>
-              <CardTitle className="text-3xl font-bold text-gray-900">{clients.length}</CardTitle>
+              <CardTitle className="text-3xl font-bold text-gray-900">{totalClientsCount}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card className="p-6 shadow-lg rounded-xl bg-white border border-gray-200">
+            <CardHeader className="pb-2">
+              <CardDescription className="text-sm font-medium text-gray-500">Total VAs</CardDescription>
+              <CardTitle className="text-3xl font-bold text-gray-900">{totalVAsCount}</CardTitle>
             </CardHeader>
           </Card>
         </div>
@@ -390,14 +319,14 @@ const AdminPortal = () => {
             <TabsTrigger value="allInfluencers" className="text-lg font-medium data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-700 rounded-lg transition-all duration-200">
               <Users className="h-5 w-5 mr-2" /> All Influencers
             </TabsTrigger>
+            <TabsTrigger value="clients" className="text-lg font-medium data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-700 rounded-lg transition-all duration-200">
+              <Briefcase className="h-5 w-5 mr-2" /> Clients
+            </TabsTrigger>
             <TabsTrigger value="vaManagement" className="text-lg font-medium data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-700 rounded-lg transition-all duration-200">
-              <Briefcase className="h-5 w-5 mr-2" /> VA Management
+              <UserPlus className="h-5 w-5 mr-2" /> VA Management
             </TabsTrigger>
             <TabsTrigger value="submissionHistory" className="text-lg font-medium data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-700 rounded-lg transition-all duration-200">
               <History className="h-5 w-5 mr-2" /> Submission History
-            </TabsTrigger>
-            <TabsTrigger value="dataExport" className="text-lg font-medium data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-700 rounded-lg transition-all duration-200">
-              <Download className="h-5 w-5 mr-2" /> Data Export
             </TabsTrigger>
           </TabsList>
 
@@ -405,60 +334,113 @@ const AdminPortal = () => {
           <TabsContent value="allInfluencers" className="mt-6 p-6 bg-white rounded-xl shadow-lg">
             <CardHeader className="pb-4">
               <CardTitle className="text-2xl font-bold">All Influencers</CardTitle>
-              <CardDescription className="text-base text-gray-600">Manage all unique influencers across all clients.</CardDescription>
+              <CardDescription className="text-base text-gray-600">A comprehensive list of all influencers in your database.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {aggregatedInfluencers.length === 0 ? (
+              {influencers.length === 0 ? (
                 <p className="text-gray-500 text-center py-8 text-lg">No influencers added yet.</p>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {aggregatedInfluencers.map(inf => (
-                    <Card key={inf.id} className="p-4 shadow-sm rounded-lg border border-gray-100">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-semibold text-lg text-gray-900">{inf.name}</h3>
-                        <div className="flex space-x-2">
-                          <Button variant="ghost" size="icon" onClick={() => deleteInfluencer(inf.id)} title="Delete Influencer">
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => changeInfluencerStatus(inf.id, !inf.submitted)} title={inf.submitted ? "Mark as Pending" : "Mark as Submitted"}>
-                            {inf.submitted ? <Clock className="h-4 w-4 text-yellow-500" /> : <CheckCircle className="h-4 w-4 text-green-500" />}
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600">{inf.businessEmail}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {inf.instagramFollowers?.toLocaleString()} IG • {inf.tiktokFollowers?.toLocaleString()} TT • {inf.engagementRate}% engagement
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">IG: <a href={inf.instagramUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Link</a> | TT: <a href={inf.tiktokUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Link</a></p>
-                      <div className="mt-2 flex items-center space-x-2">
-                        {inf.submitted ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            <CheckCircle className="h-3 w-3 mr-1" /> Submitted
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                            <Clock className="h-3 w-3 mr-1" /> Pending
-                          </span>
-                        )}
-                        {inf.clientIds.length === 1 ? (
-                          <span className="text-sm font-medium text-gray-700">{getClientName(inf.clientIds[0])}</span>
-                        ) : (
-                          <Button variant="ghost" size="sm" onClick={() => setExpandedInfluencerClients(prev => ({ ...prev, [inf.id]: !prev[inf.id] }))} className="h-auto px-2 py-1">
-                            {getClientName(inf.clientIds[0])} +{inf.clientIds.length - 1} {expandedInfluencerClients[inf.id] ? <ChevronUp className="h-3 w-3 ml-1" /> : <ChevronDown className="h-3 w-3 ml-1" />}
-                          </Button>
-                        )}
-                      </div>
-                      {expandedInfluencerClients[inf.id] && inf.clientIds.length > 1 && (
-                        <div className="mt-2 pl-4 border-l border-gray-200">
-                          {inf.clientIds.slice(1).map(clientId => (
-                            <p key={clientId} className="text-xs text-gray-600">- {getClientName(clientId)}</p>
-                          ))}
-                        </div>
-                      )}
-                    </Card>
-                  ))}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('name')}>
+                          Name {sortBy === 'name' && (sortOrder === 'asc' ? <ChevronUp className="inline h-4 w-4 ml-1" /> : <ChevronDown className="inline h-4 w-4 ml-1" />)}
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('businessEmail')}>
+                          Email {sortBy === 'businessEmail' && (sortOrder === 'asc' ? <ChevronUp className="inline h-4 w-4 ml-1" /> : <ChevronDown className="inline h-4 w-4 ml-1" />)}
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IG Followers</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TT Followers</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Views</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Engagement</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IG URL</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TT URL</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('clientIds')}>
+                          Client(s) {sortBy === 'clientIds' && (sortOrder === 'asc' ? <ChevronUp className="inline h-4 w-4 ml-1" /> : <ChevronDown className="inline h-4 w-4 ml-1" />)}
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Added</th>
+                        <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {sortedInfluencers.map(inf => (
+                        <tr key={inf.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{inf.name}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{inf.businessEmail}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{inf.instagramFollowers?.toLocaleString()}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{inf.tiktokFollowers?.toLocaleString()}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{inf.averageViews?.toLocaleString()}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{inf.engagementRate}%</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-500 hover:underline"><a href={inf.instagramUrl} target="_blank" rel="noopener noreferrer">Link</a></td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-500 hover:underline"><a href={inf.tiktokUrl} target="_blank" rel="noopener noreferrer">Link</a></td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate" title={inf.notes}>{inf.notes}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {(inf.clientIds || [inf.clientId]).map(id => getClientName(id)).join(', ')}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{inf.dateAdded}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <Button variant="destructive" size="icon" onClick={() => deleteInfluencer(inf.id)} title="Delete Influencer">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
+            </CardContent>
+          </TabsContent>
+
+          {/* Clients Tab */}
+          <TabsContent value="clients" className="mt-6 p-6 bg-white rounded-xl shadow-lg">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-2xl font-bold">Clients</CardTitle>
+              <CardDescription className="text-base text-gray-600">Manage your clients and their associated VAs and influencers.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <Dialog open={isAddClientDialogOpen} onOpenChange={setIsAddClientDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="w-full py-3 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200">
+                    <PlusCircle className="h-5 w-5 mr-2" /> Add New Client
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Add New Client</DialogTitle>
+                    <DialogDescription>Enter the name of the new client.</DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <Label htmlFor="clientName">Client Name</Label>
+                    <Input id="clientName" value={newClientName} onChange={(e) => setNewClientName(e.target.value)} placeholder="e.g., Brand X" />
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={addClient}>Add Client</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {clients.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8 text-lg col-span-full">No clients added yet.</p>
+                ) : (
+                  clients.map(client => (
+                    <Card key={client.id} className="p-4 shadow-sm rounded-lg border border-gray-100">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-semibold text-lg text-gray-900">{client.name}</h3>
+                        <Button variant="destructive" size="icon" onClick={() => deleteClient(client.id)} title="Delete Client">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-sm text-gray-600">Assigned VAs: {vas.filter(va => va.assignedClients.includes(client.id)).length}</p>
+                      <p className="text-sm text-gray-600">Associated Influencers: {influencers.filter(inf => (inf.clientIds || [inf.clientId]).includes(client.id)).length}</p>
+                      {/* Add more client-specific details here if needed */}
+                    </Card>
+                  ))
+                )}
+              </div>
             </CardContent>
           </TabsContent>
 
@@ -587,17 +569,6 @@ const AdminPortal = () => {
                               <p className="font-medium text-base">{inf.name}</p>
                               <p className="text-sm text-gray-600">{getClientName(inf.clientId)}</p>
                             </div>
-                            <div className="flex items-center space-x-2">
-                              {inf.submitted ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                  <CheckCircle className="h-3 w-3 mr-1" /> Submitted
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                  <Clock className="h-3 w-3 mr-1" /> Pending
-                                </span>
-                              )}
-                            </div>
                           </div>
                         ))}
                       </div>
@@ -615,14 +586,8 @@ const AdminPortal = () => {
               <CardDescription className="text-base text-gray-600">Download your influencer data in CSV format.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button onClick={exportAllInfluencers} className="w-full py-3 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200">
+              <Button onClick={() => exportInfluencersToCsv(influencers, 'all_influencers.csv')} className="w-full py-3 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200">
                 <Download className="h-5 w-5 mr-2" /> Export All Influencers (CSV)
-              </Button>
-              <Button onClick={exportSubmittedInfluencers} variant="outline" className="w-full py-3 text-lg font-semibold">
-                <Download className="h-5 w-5 mr-2" /> Export Submitted Influencers (CSV)
-              </Button>
-              <Button onClick={exportPendingInfluencers} variant="outline" className="w-full py-3 text-lg font-semibold">
-                <Download className="h-5 w-5 mr-2" /> Export Pending Influencers (CSV)
               </Button>
             </CardContent>
           </TabsContent>
