@@ -54,7 +54,7 @@ function AppContent() {
       icon: Building2,
       color: 'bg-green-500',
       component: ClientPortal,
-      allowedRoles: ['admin', 'va'] // For now, allow both to see client view
+      allowedRoles: ['admin', 'client']
     }
   ]
 
