@@ -26,7 +26,7 @@ app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'sta
 app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 
 # Enable CORS for all routes
-CORS(app, origins="*")
+CORS(app, origins=["http://localhost:5173", "http://localhost:3000", "https://usariodashboard.netlify.app"] )
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
