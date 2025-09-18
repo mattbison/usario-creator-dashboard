@@ -5,110 +5,177 @@ import { Button } from '@/components/ui/button.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { Label } from '@/components/ui/label.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
-import { Trash2, Edit, UserPlus, Users, Briefcase, History, CheckCircle, Clock, XCircle, Download, PlusCircle, ChevronDown, ChevronUp, Info, AlertTriangle } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog.jsx';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog.jsx';
+import { Badge } from '@/components/ui/badge.jsx';
+import { Users, Building2, UserPlus, Download, Calendar, TrendingUp, Eye, Heart, Instagram } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
 import apiService from '../services/api';
 
-// Custom Notification Component
-const Notification = ({ message, type, title, onClose }) => {
-  const [isVisible, setIsVisible] = useState(false);
-  const timerRef = useRef(null);
-
-  useEffect(() => {
-    setIsVisible(true);
-    timerRef.current = setTimeout(() => {
-      setIsVisible(false);
-      setTimeout(onClose, 500);
-    }, 5000);
-
-    return () => clearTimeout(timerRef.current);
-  }, [message, type, title, onClose]);
-
-  const bgColor = type === 'error' ? 'bg-red-50' : type === 'success' ? 'bg-green-50' : 'bg-yellow-50';
-  const borderColor = type === 'error' ? 'border-red-500' : type === 'success' ? 'border-green-500' : 'border-yellow-500';
-  const iconColor = type === 'error' ? 'text-red-600' : type === 'success' ? 'text-green-600' : 'text-yellow-600';
-  const Icon = type === 'error' ? AlertTriangle : type === 'success' ? CheckCircle : Info;
-
-  return (
-    <div
-      className={`fixed top-0 left-1/2 -translate-x-1/2 mt-4 p-4 rounded-lg shadow-lg max-w-md w-full z-50 transition-all duration-500\
-        ${isVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'}\
-        ${bgColor} ${borderColor} border`}
-      role="alert"
-    >
-      <div className="flex items-start">
-        <Icon className={`h-5 w-5 mr-3 ${iconColor}`} />
-        <div>
-          <h3 className="text-lg font-semibold">{title}</h3>
-          <p className="text-base text-gray-700">{message}</p>
-        </div>
-        <button onClick={() => {
-          setIsVisible(false);
-          setTimeout(onClose, 500);
-        }} className="ml-auto -mr-1 -mt-1 p-1 rounded-md inline-flex items-center justify-center text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500">
-          <span className="sr-only">Close</span>
-          <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-    </div>
-  );
-};
-
 const AdminPortal = () => {
   const { user } = useAuth();
-  const [influencers, setInfluencers] = useState([]);
-  const [submittedInfluencers, setSubmittedInfluencers] = useState([]);
+  const [activeTab, setActiveTab] = useState('overview');
   const [users, setUsers] = useState([]);
   const [clients, setClients] = useState([]);
+  const [influencers, setInfluencers] = useState([]);
   const [submissions, setSubmissions] = useState([]);
-  const [selectedVa, setSelectedVa] = useState('');
-  const [newClientName, setNewClientName] = useState('');
-  const [vaToAssignClient, setVaToAssignClient] = useState(null);
-  const [clientToAssign, setClientToAssign] = useState('');
-  const [isAssignClientDialogOpen, setIsAssignClientDialogOpen] = useState(false);
-  const [isAddClientDialogOpen, setIsAddClientDialogOpen] = useState(false);
-  const [alert, setAlert] = useState(null);
-  const [expandedSubmission, setExpandedSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Dialog states
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isAddClientOpen, setIsAddClientOpen] = useState(false);
+  const [isAssignClientOpen, setIsAssignClientOpen] = useState(false);
+  
+  // Form states
+  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'va', full_name: '' });
+  const [newClient, setNewClient] = useState({ name: '', description: '' });
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState('');
 
   useEffect(() => {
-    loadInitialData();
-  }, [user]);
+    loadAllData();
+  }, []);
 
-  const loadInitialData = async () => {
+  const loadAllData = async () => {
     try {
       setLoading(true);
       
-      // Load all data
-      const [clientsResponse, usersResponse, influencersResponse, submissionsResponse] = await Promise.all([
-        apiService.getClients(),
+      const [usersRes, clientsRes, influencersRes, submissionsRes] = await Promise.all([
         apiService.getUsers(),
+        apiService.getClients(),
         apiService.getInfluencers(),
         apiService.getSubmissions()
       ]);
       
-      setClients(clientsResponse.clients);
-      setUsers(usersResponse.users);
-      setInfluencers(influencersResponse.influencers);
-      setSubmissions(submissionsResponse.submissions);
-      
-      // Filter submitted influencers
-      const submitted = influencersResponse.influencers.filter(inf => inf.submitted);
-      setSubmittedInfluencers(submitted);
+      setUsers(usersRes.users);
+      setClients(clientsRes.clients);
+      setInfluencers(influencersRes.influencers);
+      setSubmissions(submissionsRes.submissions);
       
     } catch (error) {
       console.error('Error loading data:', error);
-      showNotification('Failed to load data. Please refresh the page.', 'error', 'Loading Error');
     } finally {
       setLoading(false);
     }
   };
 
-  const showNotification = (message, type = 'info', title = '') => {
-    setAlert({ message, type, title });
+  const handleAddUser = async () => {
+    try {
+      await apiService.createUser(newUser);
+      setNewUser({ email: '', password: '', role: 'va', full_name: '' });
+      setIsAddUserOpen(false);
+      loadAllData();
+    } catch (error) {
+      console.error('Error adding user:', error);
+    }
+  };
+
+  const handleAddClient = async () => {
+    try {
+      await apiService.createClient(newClient);
+      setNewClient({ name: '', description: '' });
+      setIsAddClientOpen(false);
+      loadAllData();
+    } catch (error) {
+      console.error('Error adding client:', error);
+    }
+  };
+
+  const handleAssignClient = async () => {
+    try {
+      await apiService.assignUserToClient(selectedUserId, selectedClientId);
+      setSelectedUserId('');
+      setSelectedClientId('');
+      setIsAssignClientOpen(false);
+      loadAllData();
+    } catch (error) {
+      console.error('Error assigning client:', error);
+    }
+  };
+
+  const exportToCSV = () => {
+    const csvContent = [
+      ['Name', 'Email', 'Instagram Handle', 'Instagram Followers', 'TikTok Handle', 'TikTok Followers', 'Average Views', 'Engagement Rate', 'Client', 'Date Added'],
+      ...influencers.map(inf => [
+        inf.name,
+        inf.business_email,
+        inf.instagram_handle,
+        inf.instagram_followers,
+        inf.tiktok_handle,
+        inf.tiktok_followers,
+        inf.average_views,
+        inf.engagement_rate,
+        getClientName(inf.client_id),
+        inf.date_added
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'influencers.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const getStats = () => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    return {
+      totalVAs: users.filter(u => u.role === 'va').length,
+      totalClients: clients.length,
+      totalInfluencers: influencers.length,
+      newInfluencersToday: influencers.filter(inf => inf.date_added === today).length,
+      totalSubmissions: submissions.length,
+      avgFollowers: influencers.length > 0 ? Math.round(influencers.reduce((sum, inf) => sum + (inf.instagram_followers || 0), 0) / influencers.length) : 0
+    };
+  };
+
+  const getClientStats = () => {
+    return clients.map(client => {
+      const clientInfluencers = influencers.filter(inf => inf.client_id === client.id);
+      return {
+        name: client.name,
+        influencers: clientInfluencers.length,
+        avgFollowers: clientInfluencers.length > 0 ? Math.round(clientInfluencers.reduce((sum, inf) => sum + (inf.instagram_followers || 0), 0) / clientInfluencers.length) : 0
+      };
+    });
+  };
+
+  const getRecentActivity = () => {
+    const last7Days = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const count = influencers.filter(inf => inf.date_added === dateStr).length;
+      
+      last7Days.push({
+        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        influencers: count
+      });
+    }
+    return last7Days;
+  };
+
+  const getFollowerDistribution = () => {
+    const ranges = [
+      { name: '0-10K', min: 0, max: 10000, count: 0, color: '#8884d8' },
+      { name: '10K-50K', min: 10000, max: 50000, count: 0, color: '#82ca9d' },
+      { name: '50K-100K', min: 50000, max: 100000, count: 0, color: '#ffc658' },
+      { name: '100K-500K', min: 100000, max: 500000, count: 0, color: '#ff7300' },
+      { name: '500K+', min: 500000, max: Infinity, count: 0, color: '#8dd1e1' }
+    ];
+
+    influencers.forEach(inf => {
+      const followers = inf.instagram_followers || 0;
+      const range = ranges.find(r => followers >= r.min && followers < r.max);
+      if (range) range.count++;
+    });
+
+    return ranges.filter(r => r.count > 0);
   };
 
   const getClientName = (clientId) => {
@@ -118,122 +185,13 @@ const AdminPortal = () => {
 
   const getVaName = (vaId) => {
     const va = users.find(u => u.id === vaId);
-    return va ? va.full_name : 'Unknown VA';
+    return va ? va.full_name || va.email : 'Unknown VA';
   };
 
-  const addClient = async () => {
-    if (!newClientName.trim()) {
-      showNotification('Please enter a client name.', 'error', 'Client Name Required');
-      return;
-    }
-
-    try {
-      const clientData = {
-        name: newClientName.trim(),
-        description: `Client: ${newClientName.trim()}`
-      };
-
-      const response = await apiService.createClient(clientData);
-      const newClient = response.client;
-
-      setClients(prev => [...prev, newClient]);
-      setNewClientName('');
-      setIsAddClientDialogOpen(false);
-      
-      showNotification('Client added successfully!', 'success', 'Success');
-    } catch (error) {
-      console.error('Error adding client:', error);
-      showNotification(error.message || 'Failed to add client.', 'error', 'Error');
-    }
-  };
-
-  const assignClientToVa = async () => {
-    if (!vaToAssignClient || !clientToAssign) {
-      showNotification('Please select both a VA and a client.', 'error', 'Selection Required');
-      return;
-    }
-
-    try {
-      await apiService.assignClientToUser(vaToAssignClient.id, clientToAssign);
-      
-      showNotification(`Client assigned to ${vaToAssignClient.full_name} successfully!`, 'success', 'Assignment Complete');
-      setIsAssignClientDialogOpen(false);
-      setVaToAssignClient(null);
-      setClientToAssign('');
-      
-      // Reload data to reflect changes
-      await loadInitialData();
-    } catch (error) {
-      console.error('Error assigning client:', error);
-      showNotification(error.message || 'Failed to assign client.', 'error', 'Assignment Error');
-    }
-  };
-
-  const deleteInfluencer = async (idToDelete) => {
-    try {
-      await apiService.deleteInfluencer(idToDelete);
-      
-      setInfluencers(prev => prev.filter(inf => inf.id !== idToDelete));
-      setSubmittedInfluencers(prev => prev.filter(inf => inf.id !== idToDelete));
-      
-      showNotification('Influencer deleted successfully.', 'success', 'Deleted');
-    } catch (error) {
-      console.error('Error deleting influencer:', error);
-      showNotification(error.message || 'Failed to delete influencer.', 'error', 'Error');
-    }
-  };
-
-  const exportInfluencersToCSV = () => {
-    const csvHeaders = [
-      'Name', 'Business Email', 'Client', 'Instagram Followers', 'TikTok Followers',
-      'Average Views', 'Engagement Rate', 'Instagram URL', 'TikTok URL', 'Notes', 'Date Added', 'Added By'
-    ];
-
-    const csvData = influencers.map(inf => [
-      inf.name,
-      inf.business_email,
-      getClientName(inf.client_id),
-      inf.instagram_followers,
-      inf.tiktok_followers,
-      inf.average_views,
-      inf.engagement_rate,
-      inf.instagram_url,
-      inf.tiktok_url,
-      inf.notes,
-      inf.date_added,
-      getVaName(inf.added_by)
-    ]);
-
-    const csvContent = [csvHeaders, ...csvData]
-      .map(row => row.map(field => `"${field}"`).join(','))
-      .join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `influencers_export_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    showNotification('Influencers exported to CSV successfully!', 'success', 'Export Complete');
-  };
-
-  const getSubmissionStats = () => {
-    const totalSubmissions = submissions.length;
-    const totalInfluencers = submittedInfluencers.length;
-    const avgInfluencersPerSubmission = totalSubmissions > 0 ? (totalInfluencers / totalSubmissions).toFixed(1) : 0;
-    
-    return {
-      totalSubmissions,
-      totalInfluencers,
-      avgInfluencersPerSubmission
-    };
-  };
-
-  const stats = getSubmissionStats();
+  const stats = getStats();
+  const clientStats = getClientStats();
+  const recentActivity = getRecentActivity();
+  const followerDistribution = getFollowerDistribution();
 
   if (loading) {
     return (
@@ -248,957 +206,469 @@ const AdminPortal = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
-      {alert && (
-        <Notification
-          message={alert.message}
-          type={alert.type}
-          title={alert.title}
-          onClose={() => setAlert(null)}
-        />
-      )}
+      <div className="bg-white rounded-lg shadow-sm border">
+        <div className="p-6 border-b">
+          <h2 className="text-2xl font-bold text-gray-900">Admin Dashboard</h2>
+          <p className="text-gray-600">Manage users, clients, and view analytics</p>
+        </div>
 
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Admin Portal</h2>
-        <p className="text-gray-600 mb-6">Manage VAs, clients, and review all influencer submissions.</p>
-
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-5 bg-gray-50 p-1 m-6 mb-0">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="manage-vas">Manage VAs</TabsTrigger>
-            <TabsTrigger value="manage-clients">Manage Clients</TabsTrigger>
-            <TabsTrigger value="all-influencers">All Influencers</TabsTrigger>
-            <TabsTrigger value="submission-history">Submissions</TabsTrigger>
+            <TabsTrigger value="vas">Manage VAs</TabsTrigger>
+            <TabsTrigger value="clients">Manage Clients</TabsTrigger>
+            <TabsTrigger value="influencers">All Influencers</TabsTrigger>
+            <TabsTrigger value="submissions">Submissions</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total VAs</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{users.filter(u => u.role === 'va').length}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
-                  <Briefcase className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{clients.length}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Influencers</CardTitle>
-                  <UserPlus className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{influencers.length}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Submissions</CardTitle>
-                  <History className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.totalSubmissions}</div>
-                </CardContent>
-              </Card>
-            </div>
+          <div className="p-6">
+            <TabsContent value="overview" className="space-y-6">
+              {/* Key Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total VAs</CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalVAs}</div>
+                    <p className="text-xs text-muted-foreground">Active virtual assistants</p>
+                  </CardContent>
+                </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>Latest influencer submissions and activity</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {submissions.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <History className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>No submissions yet.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {submissions.slice(0, 5).map((submission) => (
-                      <div key={submission.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <h3 className="font-medium">Submission #{submission.id}</h3>
-                          <p className="text-sm text-gray-600">
-                            {submission.influencer_count} influencers submitted by {getVaName(submission.submitted_by)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(submission.submission_date).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
-                          Submitted
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalClients}</div>
+                    <p className="text-xs text-muted-foreground">Active clients</p>
+                  </CardContent>
+                </Card>
 
-          <TabsContent value="manage-vas" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Users className="h-5 w-5" />
-                    <span>Virtual Assistants ({users.filter(u => u.role === 'va').length})</span>
-                  </div>
-                </CardTitle>
-                <CardDescription>
-                  Manage VA accounts and client assignments
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {users.filter(u => u.role === 'va').length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>No VAs registered yet.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {users.filter(u => u.role === 'va').map((va) => (
-                      <div key={va.id} className="border rounded-lg p-4">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <h3 className="font-medium text-gray-900">{va.full_name}</h3>
-                            <p className="text-sm text-gray-600">{va.email}</p>
-                            <p className="text-xs text-gray-500">
-                              Joined: {new Date(va.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              setVaToAssignClient(va);
-                              setIsAssignClientDialogOpen(true);
-                            }}
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Influencers</CardTitle>
+                    <Instagram className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalInfluencers}</div>
+                    <p className="text-xs text-muted-foreground">
+                      +{stats.newInfluencersToday} added today
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Avg Followers</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.avgFollowers.toLocaleString()}</div>
+                    <p className="text-xs text-muted-foreground">Instagram average</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Charts */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recent Activity</CardTitle>
+                    <CardDescription>Influencers added in the last 7 days</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={recentActivity}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="influencers" stroke="#8884d8" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Follower Distribution</CardTitle>
+                    <CardDescription>Instagram followers by range</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {followerDistribution.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={followerDistribution}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="count"
                           >
-                            Assign Client
-                          </Button>
+                            {followerDistribution.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex items-center justify-center h-[300px] text-gray-500">
+                        No data available
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Client Performance */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Client Performance</CardTitle>
+                  <CardDescription>Influencers and average followers by client</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={clientStats}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="influencers" fill="#8884d8" name="Influencers" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="vas" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-semibold">Virtual Assistants</h3>
+                  <p className="text-gray-600">Manage VA accounts and client assignments</p>
+                </div>
+                <div className="space-x-2">
+                  <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Add VA
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add New VA</DialogTitle>
+                        <DialogDescription>Create a new virtual assistant account</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="email">Email</Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            value={newUser.email}
+                            onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                            placeholder="va@example.com"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="fullName">Full Name</Label>
+                          <Input
+                            id="fullName"
+                            value={newUser.full_name}
+                            onChange={(e) => setNewUser({...newUser, full_name: e.target.value})}
+                            placeholder="John Doe"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="password">Password</Label>
+                          <Input
+                            id="password"
+                            type="password"
+                            value={newUser.password}
+                            onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                            placeholder="Enter password"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="role">Role</Label>
+                          <Select value={newUser.role} onValueChange={(value) => setNewUser({...newUser, role: value})}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="va">VA</SelectItem>
+                              <SelectItem value="admin">Admin</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAddUserOpen(false)}>Cancel</Button>
+                        <Button onClick={handleAddUser}>Add VA</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
 
-          <TabsContent value="manage-clients" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Briefcase className="h-5 w-5" />
-                    <span>Clients ({clients.length})</span>
-                  </div>
-                  <Button onClick={() => setIsAddClientDialogOpen(true)}>
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    Add Client
-                  </Button>
-                </CardTitle>
-                <CardDescription>
-                  Manage client accounts and assignments
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {clients.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Briefcase className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>No clients added yet.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {clients.map((client) => (
-                      <div key={client.id} className="border rounded-lg p-4">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <h3 className="font-medium text-gray-900">{client.name}</h3>
+                  <Dialog open={isAssignClientOpen} onOpenChange={setIsAssignClientOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline">Assign Client</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Assign Client to VA</DialogTitle>
+                        <DialogDescription>Give a VA access to a specific client</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label>Select VA</Label>
+                          <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Choose a VA" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {users.filter(u => u.role === 'va').map(user => (
+                                <SelectItem key={user.id} value={user.id.toString()}>
+                                  {user.full_name || user.email}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Select Client</Label>
+                          <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Choose a client" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {clients.map(client => (
+                                <SelectItem key={client.id} value={client.id.toString()}>
+                                  {client.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAssignClientOpen(false)}>Cancel</Button>
+                        <Button onClick={handleAssignClient}>Assign</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
+
+              <div className="grid gap-4">
+                {users.filter(u => u.role === 'va').map(user => (
+                  <Card key={user.id}>
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-semibold">{user.full_name || user.email}</h4>
+                          <p className="text-sm text-gray-600">{user.email}</p>
+                          <Badge variant="secondary" className="mt-2">{user.role.toUpperCase()}</Badge>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-600">
+                            Joined: {new Date(user.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="clients" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-semibold">Clients</h3>
+                  <p className="text-gray-600">Manage client accounts and information</p>
+                </div>
+                <Dialog open={isAddClientOpen} onOpenChange={setIsAddClientOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Building2 className="h-4 w-4 mr-2" />
+                      Add Client
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add New Client</DialogTitle>
+                      <DialogDescription>Create a new client account</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="clientName">Client Name</Label>
+                        <Input
+                          id="clientName"
+                          value={newClient.name}
+                          onChange={(e) => setNewClient({...newClient, name: e.target.value})}
+                          placeholder="Company Name"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="clientDescription">Description</Label>
+                        <Input
+                          id="clientDescription"
+                          value={newClient.description}
+                          onChange={(e) => setNewClient({...newClient, description: e.target.value})}
+                          placeholder="Brief description of the client"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsAddClientOpen(false)}>Cancel</Button>
+                      <Button onClick={handleAddClient}>Add Client</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              <div className="grid gap-4">
+                {clients.map(client => {
+                  const clientInfluencers = influencers.filter(inf => inf.client_id === client.id);
+                  return (
+                    <Card key={client.id}>
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold">{client.name}</h4>
                             <p className="text-sm text-gray-600">{client.description}</p>
-                            <p className="text-xs text-gray-500">
+                            <div className="flex items-center space-x-4 mt-2">
+                              <Badge variant="outline">
+                                {clientInfluencers.length} influencers
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-gray-600">
                               Created: {new Date(client.created_at).toLocaleDateString()}
                             </p>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="all-influencers" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <UserPlus className="h-5 w-5" />
-                    <span>All Influencers ({influencers.length})</span>
-                  </div>
-                  <Button onClick={exportInfluencersToCSV}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Export CSV
-                  </Button>
-                </CardTitle>
-                <CardDescription>
-                  View and manage all influencer records
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {influencers.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <UserPlus className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>No influencers added yet.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {influencers.map((influencer) => (
-                      <div key={influencer.id} className="border rounded-lg p-4 hover:bg-gray-50">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <h3 className="font-medium text-gray-900">{influencer.name}</h3>
-                              <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                {getClientName(influencer.client_id)}
-                              </span>
-                              {influencer.submitted && (
-                                <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded">
-                                  Submitted
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-gray-600 mb-2">{influencer.business_email}</p>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                              <div>
-                                <span className="text-gray-500">Instagram:</span>
-                                <p className="font-medium">{influencer.instagram_followers?.toLocaleString() || 0} followers</p>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">TikTok:</span>
-                                <p className="font-medium">{influencer.tiktok_followers?.toLocaleString() || 0} followers</p>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">Avg Views:</span>
-                                <p className="font-medium">{influencer.average_views?.toLocaleString() || 0}</p>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">Engagement:</span>
-                                <p className="font-medium">{influencer.engagement_rate || 0}%</p>
-                              </div>
-                            </div>
-                            <div className="mt-2 text-xs text-gray-500">
-                              Added by {getVaName(influencer.added_by)} on {new Date(influencer.date_added).toLocaleDateString()}
-                            </div>
-                            {influencer.notes && (
-                              <p className="text-sm text-gray-600 mt-2 italic">{influencer.notes}</p>
-                            )}
-                          </div>
-                          <div className="flex space-x-2 ml-4">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => deleteInfluencer(influencer.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="submission-history" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <History className="h-5 w-5" />
-                  <span>Submission History ({submissions.length})</span>
-                </CardTitle>
-                <CardDescription>
-                  View all VA submissions and their details
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {submissions.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <History className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>No submissions yet.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {submissions.map((submission) => (
-                      <div key={submission.id} className="border rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h3 className="font-medium text-gray-900">
-                              Submission #{submission.id}
-                            </h3>
-                            <p className="text-sm text-gray-600">
-                              {submission.influencer_count} influencers submitted by {getVaName(submission.submitted_by)}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(submission.submission_date).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
-                              Submitted
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setExpandedSubmission(
-                                expandedSubmission === submission.id ? null : submission.id
-                              )}
-                            >
-                              {expandedSubmission === submission.id ? (
-                                <ChevronUp className="h-4 w-4" />
-                              ) : (
-                                <ChevronDown className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                        {submission.notes && (
-                          <p className="text-sm text-gray-600 italic mb-2">{submission.notes}</p>
-                        )}
-                        {expandedSubmission === submission.id && (
-                          <div className="mt-4 pt-4 border-t">
-                            <h4 className="font-medium text-gray-900 mb-2">Submitted Influencers:</h4>
-                            <div className="space-y-2">
-                              {submittedInfluencers
-                                .filter(inf => inf.submission_id === submission.id)
-                                .map((influencer) => (
-                                  <div key={influencer.id} className="text-sm bg-gray-50 p-2 rounded">
-                                    <span className="font-medium">{influencer.name}</span> - {influencer.business_email}
-                                    <span className="text-gray-500 ml-2">({getClientName(influencer.client_id)})</span>
-                                  </div>
-                                ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-
-      {/* Add Client Dialog */}
-      <Dialog open={isAddClientDialogOpen} onOpenChange={setIsAddClientDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add New Client</DialogTitle>
-            <DialogDescription>
-              Create a new client account that can be assigned to VAs.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="client-name">Client Name</Label>
-              <Input
-                id="client-name"
-                placeholder="Enter client name"
-                value={newClientName}
-                onChange={(e) => setNewClientName(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button onClick={addClient}>Add Client</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Assign Client Dialog */}
-      <Dialog open={isAssignClientDialogOpen} onOpenChange={setIsAssignClientDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Assign Client to VA</DialogTitle>
-            <DialogDescription>
-              {vaToAssignClient && `Assign a client to ${vaToAssignClient.full_name}`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="client-select">Select Client</Label>
-              <Select value={clientToAssign} onValueChange={setClientToAssign}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a client" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id.toString()}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button onClick={assignClientToVa}>Assign Client</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-};
-
-export default AdminPortal;
-  };
-
-  const getClientName = (clientId) => {
-    const client = clients.find(c => c.id === clientId);
-    return client ? client.name : 'Unknown Client';
-  };
-
-  const getVaName = (vaId) => {
-    const va = vas.find(v => v.id === vaId);
-    return va ? va.name : 'Unknown VA';
-  };
-
-  const addVa = () => {
-    if (newVaName.trim() === '') {
-      showNotification('VA name cannot be empty.', 'error', 'Error Adding VA');
-      return;
-    }
-    const newVa = { id: Date.now().toString(), name: newVaName, assignedClients: [] };
-    setVAs(prev => [...prev, newVa]);
-    setNewVaName('');
-    setIsAddVaDialogOpen(false);
-    showNotification(`VA '${newVaName}' added successfully!`, 'success', 'VA Added');
-  };
-
-  const deleteVa = (vaId) => {
-    const vaName = getVaName(vaId);
-    setVAs(prev => prev.filter(va => va.id !== vaId));
-    showNotification(`VA '${vaName}' deleted successfully.`, 'success', 'VA Deleted');
-  };
-
-  const openAssignClientDialog = (va) => {
-    setVaToAssignClient(va);
-    setClientToAssign('');
-    setIsAssignClientDialogOpen(true);
-  };
-
-  const assignClientToVa = () => {
-    if (!vaToAssignClient || !clientToAssign) {
-      showNotification('Please select a VA and a client.', 'error', 'Assignment Error');
-      return;
-    }
-    setVAs(prev => prev.map(va => 
-      va.id === vaToAssignClient.id
-        ? { ...va, assignedClients: [...new Set([...va.assignedClients, clientToAssign])] }
-        : va
-    ));
-    setIsAssignClientDialogOpen(false);
-    showNotification(`Client '${getClientName(clientToAssign)}' assigned to '${vaToAssignClient.name}'.`, 'success', 'Client Assigned');
-  };
-
-  const unassignClientFromVa = (vaId, clientId) => {
-    const vaName = getVaName(vaId);
-    const clientName = getClientName(clientId);
-    setVAs(prev => prev.map(va => 
-      va.id === vaId
-        ? { ...va, assignedClients: va.assignedClients.filter(id => id !== clientId) }
-        : va
-    ));
-    showNotification(`Client '${clientName}' unassigned from '${vaName}'.`, 'success', 'Client Unassigned');
-  };
-
-  const deleteInfluencer = (idToDelete) => {
-    const influencerName = influencers.find(inf => inf.id === idToDelete)?.name || submittedInfluencers.find(inf => inf.id === idToDelete)?.name || 'Influencer';
-    setInfluencers(prev => prev.filter(inf => inf.id !== idToDelete));
-    setSubmittedInfluencers(prev => prev.filter(inf => inf.id !== idToDelete));
-    showNotification(`${influencerName} deleted successfully.`, 'success', 'Influencer Deleted');
-  };
-
-  const changeInfluencerStatus = (influencerId, newStatus) => {
-    let updatedInfluencer = null;
-    setInfluencers(prev => prev.map(inf => {
-      if (inf.id === influencerId) {
-        updatedInfluencer = { ...inf, submitted: newStatus };
-        return updatedInfluencer;
-      }
-      return inf;
-    }));
-
-    if (updatedInfluencer) {
-      if (newStatus) {
-        // Move from pending to submitted
-        setSubmittedInfluencers(prev => [...prev, updatedInfluencer]);
-        setInfluencers(prev => prev.filter(inf => inf.id !== influencerId));
-      } else {
-        // Move from submitted to pending
-        setInfluencers(prev => [...prev, updatedInfluencer]);
-        setSubmittedInfluencers(prev => prev.filter(inf => inf.id !== influencerId));
-      }
-      showNotification(`Influencer status updated to ${newStatus ? 'Submitted' : 'Pending'}.`, 'success', 'Status Updated');
-    }
-  };
-
-  const exportAllInfluencers = () => {
-    const allInfluencers = [...influencers, ...submittedInfluencers];
-    if (allInfluencers.length === 0) {
-      showNotification('No influencers to export.', 'warning', 'Export Failed');
-      return;
-    }
-    const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Instagram URL", "TikTok URL", "Notes", "Client(s)", "Date Added", "Status"];
-    const rows = allInfluencers.map(inf => {
-      // Handle multiple clients for an influencer if it were implemented more robustly
-      // For now, it's one client per influencer as per current data structure
-      const clientNames = getClientName(inf.clientId);
-      return [
-        inf.name,
-        inf.businessEmail,
-        inf.instagramFollowers,
-        inf.tiktokFollowers,
-        inf.averageViews,
-        inf.engagementRate,
-        inf.instagramUrl,
-        inf.tiktokUrl,
-        inf.notes,
-        clientNames,
-        inf.dateAdded,
-        inf.submitted ? "Submitted" : "Pending"
-      ];
-    });
-
-    let csvContent = headers.join(",") + "\n";
-    rows.forEach(row => {
-      csvContent += row.map(item => `"${item}"`).join(",") + "\n";
-    });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', 'all_influencers.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showNotification('All influencers exported successfully!', 'success', 'Export Complete');
-  };
-
-  const exportSubmittedInfluencers = () => {
-    if (submittedInfluencers.length === 0) {
-      showNotification('No submitted influencers to export.', 'warning', 'Export Failed');
-      return;
-    }
-    const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Instagram URL", "TikTok URL", "Notes", "Client(s)", "Date Added", "Status"];
-    const rows = submittedInfluencers.map(inf => {
-      const clientNames = getClientName(inf.clientId);
-      return [
-        inf.name,
-        inf.businessEmail,
-        inf.instagramFollowers,
-        inf.tiktokFollowers,
-        inf.averageViews,
-        inf.engagementRate,
-        inf.instagramUrl,
-        inf.tiktokUrl,
-        inf.notes,
-        clientNames,
-        inf.dateAdded,
-        inf.submitted ? "Submitted" : "Pending"
-      ];
-    });
-
-    let csvContent = headers.join(",") + "\n";
-    rows.forEach(row => {
-      csvContent += row.map(item => `"${item}"`).join(",") + "\n";
-    });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', 'submitted_influencers.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showNotification('Submitted influencers exported successfully!', 'success', 'Export Complete');
-  };
-
-  const exportPendingInfluencers = () => {
-    const pendingInfluencers = influencers.filter(inf => !inf.submitted);
-    if (pendingInfluencers.length === 0) {
-      showNotification('No pending influencers to export.', 'warning', 'Export Failed');
-      return;
-    }
-    const headers = ["Name", "Business Email", "Instagram Followers", "TikTok Followers", "Average Views", "Engagement Rate", "Instagram URL", "TikTok URL", "Notes", "Client(s)", "Date Added", "Status"];
-    const rows = pendingInfluencers.map(inf => {
-      const clientNames = getClientName(inf.clientId);
-      return [
-        inf.name,
-        inf.businessEmail,
-        inf.instagramFollowers,
-        inf.tiktokFollowers,
-        inf.averageViews,
-        inf.engagementRate,
-        inf.instagramUrl,
-        inf.tiktokUrl,
-        inf.notes,
-        clientNames,
-        inf.dateAdded,
-        inf.submitted ? "Submitted" : "Pending"
-      ];
-    });
-
-    let csvContent = headers.join(",") + "\n";
-    rows.forEach(row => {
-      csvContent += row.map(item => `"${item}"`).join(",") + "\n";
-    });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', 'pending_influencers.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showNotification('Pending influencers exported successfully!', 'success', 'Export Complete');
-  };
-
-  // Group submitted influencers by VA and date for history tab
-  const getGroupedSubmissions = () => {
-    const grouped = submittedInfluencers.reduce((acc, inf) => {
-      // Assuming VA ID is stored with influencer on submission, or default to 'unknown'
-      const vaId = inf.vaId || 'unknown'; 
-      const date = inf.dateAdded; // Use dateAdded as submission date
-      const key = `${vaId}-${date}`;
-      if (!acc[key]) {
-        acc[key] = { id: key, vaId, date, influencers: [] };
-      }
-      acc[key].influencers.push(inf);
-      return acc;
-    }, {});
-    return Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
-  };
-
-  const submissionHistory = getGroupedSubmissions();
-
-  // Aggregate influencers for 'All Influencers' tab to handle multiple clients
-  const aggregatedInfluencers = influencers.concat(submittedInfluencers).reduce((acc, inf) => {
-    const existing = acc.find(item => item.businessEmail === inf.businessEmail);
-    if (existing) {
-      // Add client if not already present
-      if (!existing.clientIds.includes(inf.clientId)) {
-        existing.clientIds.push(inf.clientId);
-      }
-      // Update status if any instance is submitted
-      if (inf.submitted) {
-        existing.submitted = true;
-      }
-    } else {
-      acc.push({ ...inf, clientIds: [inf.clientId] });
-    }
-    return acc;
-  }, []);
-
-  const totalInfluencersCount = aggregatedInfluencers.length;
-  const totalSubmittedCount = aggregatedInfluencers.filter(inf => inf.submitted).length;
-  const totalPendingCount = aggregatedInfluencers.filter(inf => !inf.submitted).length;
-
-  return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      {alert && <Notification message={alert.message} type={alert.type} title={alert.title} onClose={() => setAlert(null)} />}
-
-      <div className="max-w-7xl mx-auto space-y-8">
-        <h1 className="text-4xl font-extrabold text-gray-900 mb-8">Usario Partners: Admin Portal</h1>
-
-        {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card className="p-6 shadow-lg rounded-xl bg-white border border-gray-200">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-sm font-medium text-gray-500">Total Unique Influencers</CardDescription>
-              <CardTitle className="text-3xl font-bold text-gray-900">{totalInfluencersCount}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="p-6 shadow-lg rounded-xl bg-white border border-gray-200">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-sm font-medium text-gray-500">Submitted Influencers</CardDescription>
-              <CardTitle className="text-3xl font-bold text-gray-900">{totalSubmittedCount}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="p-6 shadow-lg rounded-xl bg-white border border-gray-200">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-sm font-medium text-gray-500">Pending Influencers</CardDescription>
-              <CardTitle className="text-3xl font-bold text-gray-900">{totalPendingCount}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="p-6 shadow-lg rounded-xl bg-white border border-gray-200">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-sm font-medium text-gray-500">Total Clients</CardDescription>
-              <CardTitle className="text-3xl font-bold text-gray-900">{clients.length}</CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
-
-        <Tabs defaultValue="allInfluencers" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 h-14 bg-gray-200 rounded-xl p-1">
-            <TabsTrigger value="allInfluencers" className="text-lg font-medium data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-700 rounded-lg transition-all duration-200">
-              <Users className="h-5 w-5 mr-2" /> All Influencers
-            </TabsTrigger>
-            <TabsTrigger value="vaManagement" className="text-lg font-medium data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-700 rounded-lg transition-all duration-200">
-              <Briefcase className="h-5 w-5 mr-2" /> VA Management
-            </TabsTrigger>
-            <TabsTrigger value="submissionHistory" className="text-lg font-medium data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-700 rounded-lg transition-all duration-200">
-              <History className="h-5 w-5 mr-2" /> Submission History
-            </TabsTrigger>
-            <TabsTrigger value="dataExport" className="text-lg font-medium data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-700 rounded-lg transition-all duration-200">
-              <Download className="h-5 w-5 mr-2" /> Data Export
-            </TabsTrigger>
-          </TabsList>
-
-          {/* All Influencers Tab */}
-          <TabsContent value="allInfluencers" className="mt-6 p-6 bg-white rounded-xl shadow-lg">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-2xl font-bold">All Influencers</CardTitle>
-              <CardDescription className="text-base text-gray-600">Manage all unique influencers across all clients.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {aggregatedInfluencers.length === 0 ? (
-                <p className="text-gray-500 text-center py-8 text-lg">No influencers added yet.</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {aggregatedInfluencers.map(inf => (
-                    <Card key={inf.id} className="p-4 shadow-sm rounded-lg border border-gray-100">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-semibold text-lg text-gray-900">{inf.name}</h3>
-                        <div className="flex space-x-2">
-                          <Button variant="ghost" size="icon" onClick={() => deleteInfluencer(inf.id)} title="Delete Influencer">
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => changeInfluencerStatus(inf.id, !inf.submitted)} title={inf.submitted ? "Mark as Pending" : "Mark as Submitted"}>
-                            {inf.submitted ? <Clock className="h-4 w-4 text-yellow-500" /> : <CheckCircle className="h-4 w-4 text-green-500" />}
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600">{inf.businessEmail}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {inf.instagramFollowers?.toLocaleString()} IG • {inf.tiktokFollowers?.toLocaleString()} TT • {inf.engagementRate}% engagement
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">IG: <a href={inf.instagramUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Link</a> | TT: <a href={inf.tiktokUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Link</a></p>
-                      <div className="mt-2 flex items-center space-x-2">
-                        {inf.submitted ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            <CheckCircle className="h-3 w-3 mr-1" /> Submitted
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                            <Clock className="h-3 w-3 mr-1" /> Pending
-                          </span>
-                        )}
-                        {inf.clientIds.length === 1 ? (
-                          <span className="text-sm font-medium text-gray-700">{getClientName(inf.clientIds[0])}</span>
-                        ) : (
-                          <Button variant="ghost" size="sm" onClick={() => setExpandedInfluencerClients(prev => ({ ...prev, [inf.id]: !prev[inf.id] }))} className="h-auto px-2 py-1">
-                            {getClientName(inf.clientIds[0])} +{inf.clientIds.length - 1} {expandedInfluencerClients[inf.id] ? <ChevronUp className="h-3 w-3 ml-1" /> : <ChevronDown className="h-3 w-3 ml-1" />}
-                          </Button>
-                        )}
-                      </div>
-                      {expandedInfluencerClients[inf.id] && inf.clientIds.length > 1 && (
-                        <div className="mt-2 pl-4 border-l border-gray-200">
-                          {inf.clientIds.slice(1).map(clientId => (
-                            <p key={clientId} className="text-xs text-gray-600">- {getClientName(clientId)}</p>
-                          ))}
-                        </div>
-                      )}
+                      </CardContent>
                     </Card>
-                  ))}
+                  );
+                })}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="influencers" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-semibold">All Influencers</h3>
+                  <p className="text-gray-600">View and export all influencer data</p>
                 </div>
-              )}
-            </CardContent>
-          </TabsContent>
-
-          {/* VA Management Tab */}
-          <TabsContent value="vaManagement" className="mt-6 p-6 bg-white rounded-xl shadow-lg">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-2xl font-bold">VA Management</CardTitle>
-              <CardDescription className="text-base text-gray-600">Add, assign clients to, and manage your Virtual Assistants.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <Dialog open={isAddVaDialogOpen} onOpenChange={setIsAddVaDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="w-full py-3 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200">
-                    <UserPlus className="h-5 w-5 mr-2" /> Add New VA
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Add New Virtual Assistant</DialogTitle>
-                    <DialogDescription>Enter the name of the new VA.</DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <Label htmlFor="vaName">VA Name</Label>
-                    <Input id="vaName" value={newVaName} onChange={(e) => setNewVaName(e.target.value)} placeholder="e.g., Jane Doe" />
-                  </div>
-                  <DialogFooter>
-                    <Button onClick={addVa}>Add VA</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-
-              <div className="space-y-4">
-                {vas.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8 text-lg">No VAs added yet.</p>
-                ) : (
-                  vas.map(va => (
-                    <Card key={va.id} className="p-4 shadow-sm rounded-lg border border-gray-100">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-semibold text-lg text-gray-900">{va.name}</h3>
-                          <p className="text-sm text-gray-600">Assigned Clients: 
-                            {va.assignedClients.length > 0 
-                              ? va.assignedClients.map(clientId => getClientName(clientId)).join(', ') 
-                              : 'None'}
-                          </p>
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button variant="outline" size="sm" onClick={() => openAssignClientDialog(va)}>
-                            <Briefcase className="h-4 w-4 mr-2" /> Assign Client
-                          </Button>
-                          <Button variant="destructive" size="sm" onClick={() => deleteVa(va.id)}>
-                            <Trash2 className="h-4 w-4 mr-2" /> Delete VA
-                          </Button>
-                        </div>
-                      </div>
-                      {va.assignedClients.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {va.assignedClients.map(clientId => (
-                            <span key={clientId} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {getClientName(clientId)}
-                              <button onClick={() => unassignClientFromVa(va.id, clientId)} className="ml-1 -mr-0.5 h-3 w-3 rounded-full hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                <XCircle className="h-3 w-3" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </Card>
-                  ))
-                )}
+                <Button onClick={exportToCSV}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
               </div>
 
-              <Dialog open={isAssignClientDialogOpen} onOpenChange={setIsAssignClientDialogOpen}>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Assign Client to {vaToAssignClient?.name}</DialogTitle>
-                    <DialogDescription>Select a client to assign to this VA.</DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <Label htmlFor="clientSelect">Client</Label>
-                    <Select value={clientToAssign} onValueChange={setClientToAssign}>
-                      <SelectTrigger id="clientSelect">
-                        <SelectValue placeholder="Select a client" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clients.map(client => (
-                          <SelectItem key={client.id} value={client.id}>
-                            {client.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <DialogFooter>
-                    <Button onClick={assignClientToVa}>Assign Client</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </CardContent>
-          </TabsContent>
-
-          {/* Submission History Tab */}
-          <TabsContent value="submissionHistory" className="mt-6 p-6 bg-white rounded-xl shadow-lg">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-2xl font-bold">Submission History</CardTitle>
-              <CardDescription className="text-base text-gray-600">View historical submissions by VAs.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {submissionHistory.length === 0 ? (
-                <p className="text-gray-500 text-center py-8 text-lg">No submission history yet.</p>
-              ) : (
-                submissionHistory.map((submission) => (
-                  <Card key={submission.id} className="p-4 shadow-sm rounded-lg border border-gray-100">
-                    <div className="flex justify-between items-center cursor-pointer" onClick={() => setExpandedSubmission(expandedSubmission === submission.id ? null : submission.id)}>
-                      <div>
-                        <h3 className="font-semibold text-lg text-gray-900">Submission by {getVaName(submission.vaId)}</h3>
-                        <p className="text-sm text-gray-600">on {submission.date} ({submission.influencers.length} influencers)</p>
+              <div className="grid gap-4">
+                {influencers.map(influencer => (
+                  <Card key={influencer.id}>
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-semibold">{influencer.name}</h4>
+                          <p className="text-sm text-gray-600">{influencer.business_email}</p>
+                          <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                            <span className="flex items-center space-x-1">
+                              <Instagram className="h-4 w-4" />
+                              <span>{(influencer.instagram_followers || 0).toLocaleString()} followers</span>
+                            </span>
+                            <span className="flex items-center space-x-1">
+                              <Eye className="h-4 w-4" />
+                              <span>{(influencer.average_views || 0).toLocaleString()} avg views</span>
+                            </span>
+                            <span className="flex items-center space-x-1">
+                              <Heart className="h-4 w-4" />
+                              <span>{influencer.engagement_rate || 0}% engagement</span>
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-2 mt-2">
+                            <Badge variant="outline">{getClientName(influencer.client_id)}</Badge>
+                            <Badge variant="secondary">
+                              Added: {new Date(influencer.date_added).toLocaleDateString()}
+                            </Badge>
+                          </div>
+                        </div>
                       </div>
-                      {expandedSubmission === submission.id ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                    </div>
-                    {expandedSubmission === submission.id && (
-                      <div className="mt-4 space-y-2 border-t border-gray-200 pt-4">
-                        {submission.influencers.map(inf => (
-                          <div key={inf.id} className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
-                            <div>
-                              <p className="font-medium text-base">{inf.name}</p>
-                              <p className="text-sm text-gray-600">{getClientName(inf.clientId)}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="submissions" className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold">Submissions</h3>
+                <p className="text-gray-600">View all influencer submissions by VAs</p>
+              </div>
+
+              <div className="grid gap-4">
+                {submissions.map(submission => {
+                  const submissionInfluencers = influencers.filter(inf => inf.submission_id === submission.id);
+                  return (
+                    <Card key={submission.id}>
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold">Submission #{submission.id}</h4>
+                            <p className="text-sm text-gray-600">
+                              By: {getVaName(submission.submitted_by)}
+                            </p>
+                            <div className="flex items-center space-x-4 mt-2">
+                              <Badge variant="outline">
+                                {submissionInfluencers.length} influencers
+                              </Badge>
+                              <span className="text-sm text-gray-500 flex items-center">
+                                <Calendar className="h-4 w-4 mr-1" />
+                                {new Date(submission.submission_date).toLocaleDateString()}
+                              </span>
                             </div>
-                            <div className="flex items-center space-x-2">
-                              {inf.submitted ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                  <CheckCircle className="h-3 w-3 mr-1" /> Submitted
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                  <Clock className="h-3 w-3 mr-1" /> Pending
-                                </span>
+                          </div>
+                          <Badge variant="secondary">Submitted</Badge>
+                        </div>
+                        
+                        {submissionInfluencers.length > 0 && (
+                          <div className="mt-4 pt-4 border-t">
+                            <h5 className="font-medium mb-2">Influencers in this submission:</h5>
+                            <div className="space-y-2">
+                              {submissionInfluencers.slice(0, 3).map(inf => (
+                                <div key={inf.id} className="flex items-center justify-between text-sm">
+                                  <span>{inf.name} - {getClientName(inf.client_id)}</span>
+                                  <span className="text-gray-500">
+                                    {(inf.instagram_followers || 0).toLocaleString()} followers
+                                  </span>
+                                </div>
+                              ))}
+                              {submissionInfluencers.length > 3 && (
+                                <p className="text-sm text-gray-500">
+                                  +{submissionInfluencers.length - 3} more influencers
+                                </p>
                               )}
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </Card>
-                ))
-              )}
-            </CardContent>
-          </TabsContent>
-
-          {/* Data Export Tab */}
-          <TabsContent value="dataExport" className="mt-6 p-6 bg-white rounded-xl shadow-lg">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-2xl font-bold">Data Export</CardTitle>
-              <CardDescription className="text-base text-gray-600">Download your influencer data in CSV format.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Button onClick={exportAllInfluencers} className="w-full py-3 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200">
-                <Download className="h-5 w-5 mr-2" /> Export All Influencers (CSV)
-              </Button>
-              <Button onClick={exportSubmittedInfluencers} variant="outline" className="w-full py-3 text-lg font-semibold">
-                <Download className="h-5 w-5 mr-2" /> Export Submitted Influencers (CSV)
-              </Button>
-              <Button onClick={exportPendingInfluencers} variant="outline" className="w-full py-3 text-lg font-semibold">
-                <Download className="h-5 w-5 mr-2" /> Export Pending Influencers (CSV)
-              </Button>
-            </CardContent>
-          </TabsContent>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </TabsContent>
+          </div>
         </Tabs>
       </div>
     </div>
@@ -1206,5 +676,3 @@ export default AdminPortal;
 };
 
 export default AdminPortal;
-
-
