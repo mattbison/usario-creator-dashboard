@@ -7,7 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx';
 import { Textarea } from '@/components/ui/textarea.jsx';
 import { CheckCircle, AlertTriangle, Info, Upload, History, Mail, UserPlus, Send, Trash2, Edit } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog.jsx';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog.jsx';
+import { useAuth } from '../contexts/AuthContext';
+import apiService from '../services/api';
 
 // Custom Notification Component
 const Notification = ({ message, type, title, onClose }) => {
@@ -18,8 +20,8 @@ const Notification = ({ message, type, title, onClose }) => {
     setIsVisible(true);
     timerRef.current = setTimeout(() => {
       setIsVisible(false);
-      setTimeout(onClose, 500); // Allow time for fade-out animation
-    }, 5000); // Notification visible for 5 seconds
+      setTimeout(onClose, 500);
+    }, 5000);
 
     return () => clearTimeout(timerRef.current);
   }, [message, type, title, onClose]);
@@ -53,14 +55,18 @@ const Notification = ({ message, type, title, onClose }) => {
         </button>
       </div>
     </div>
-   );
+  );
 };
 
 const TeamPortal = () => {
+  const { user } = useAuth();
   const [selectedClient, setSelectedClient] = useState('');
+  const [clients, setClients] = useState([]);
+  const [userClients, setUserClients] = useState([]);
   const [influencers, setInfluencers] = useState([]);
   const [todaysInfluencers, setTodaysInfluencers] = useState([]);
   const [submittedInfluencers, setSubmittedInfluencers] = useState([]);
+  const [submissions, setSubmissions] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
     businessEmail: '',
@@ -68,8 +74,8 @@ const TeamPortal = () => {
     tiktokFollowers: '',
     averageViews: '',
     engagementRate: '',
-    instagramUrl: '', // New field
-    tiktokUrl: '',     // New field
+    instagramUrl: '',
+    tiktokUrl: '',
     notes: ''
   });
   const [alert, setAlert] = useState(null);
@@ -77,27 +83,780 @@ const TeamPortal = () => {
   const [csvFileName, setCsvFileName] = useState('');
   const [bulkUploadErrors, setBulkUploadErrors] = useState([]);
   const [isSubmitProspectsDialogOpen, setIsSubmitProspectsDialogOpen] = useState(false);
-  const [editingInfluencerId, setEditingInfluencerId] = useState(null); // For edit functionality
-  const [prospectsToNotify, setProspectsToNotify] = useState([]); // New state for notification content
-
-  const clients = [
-    { id: 'client1', name: 'TechBrand Co.' },
-    { id: 'client2', name: 'Fashion Forward' },
-    { id: 'client3', name: 'Fitness Plus' }
-  ];
+  const [editingInfluencerId, setEditingInfluencerId] = useState(null);
+  const [prospectsToNotify, setProspectsToNotify] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedInfluencers = localStorage.getItem('influencers');
-    const savedTodaysInfluencers = localStorage.getItem('todaysInfluencers');
-    const savedSubmittedInfluencers = localStorage.getItem('submittedInfluencers');
+    loadInitialData();
+  }, [user]);
 
-    if (savedInfluencers) setInfluencers(JSON.parse(savedInfluencers));
-    if (savedTodaysInfluencers) setTodaysInfluencers(JSON.parse(savedTodaysInfluencers));
-    if (savedSubmittedInfluencers) setSubmittedInfluencers(JSON.parse(savedSubmittedInfluencers));
-  }, []);
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load clients
+      const clientsResponse = await apiService.getClients();
+      setClients(clientsResponse.clients);
+      
+      // Load user's assigned clients
+      if (user) {
+        const userClientsResponse = await apiService.getUserClients(user.id);
+        setUserClients(userClientsResponse.clients);
+      }
+      
+      // Load influencers
+      const influencersResponse = await apiService.getInfluencers();
+      setInfluencers(influencersResponse.influencers);
+      
+      // Filter today's influencers (not submitted)
+      const today = new Date().toISOString().split('T')[0];
+      const todaysInfluencers = influencersResponse.influencers.filter(inf => 
+        inf.date_added === today && !inf.submitted
+      );
+      setTodaysInfluencers(todaysInfluencers);
+      
+      // Filter submitted influencers
+      const submitted = influencersResponse.influencers.filter(inf => inf.submitted);
+      setSubmittedInfluencers(submitted);
+      
+      // Load submissions
+      const submissionsResponse = await apiService.getSubmissions();
+      setSubmissions(submissionsResponse.submissions);
+      
+    } catch (error) {
+      console.error('Error loading data:', error);
+      showNotification('Failed to load data. Please refresh the page.', 'error', 'Loading Error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  useEffect(() => {
-    localStorage.setItem('influencers', JSON.stringify(influencers));
+  const showNotification = (message, type = 'info', title = '') => {
+    setAlert({ message, type, title });
+  };
+
+  const getClientName = (clientId) => {
+    const client = clients.find(c => c.id === clientId);
+    return client ? client.name : 'Unknown Client';
+  };
+
+  const isDuplicate = (newInfluencer, existingInfluencers) => {
+    return existingInfluencers.some(inf => 
+      inf.client_id === newInfluencer.client_id && 
+      inf.business_email.toLowerCase() === newInfluencer.business_email.toLowerCase()
+    );
+  };
+
+  const addInfluencer = async () => {
+    if (!selectedClient) {
+      showNotification('Please select a client first.', 'error', 'Client Required');
+      return;
+    }
+
+    if (!formData.name || !formData.businessEmail || !formData.instagramUrl || !formData.tiktokUrl) {
+      showNotification('Please fill in all required fields (Name, Business Email, Instagram URL, TikTok URL).', 'error', 'Missing Information');
+      return;
+    }
+
+    try {
+      const influencerData = {
+        client_id: selectedClient,
+        name: formData.name,
+        business_email: formData.businessEmail,
+        instagram_followers: parseInt(formData.instagramFollowers) || 0,
+        tiktok_followers: parseInt(formData.tiktokFollowers) || 0,
+        average_views: parseInt(formData.averageViews) || 0,
+        engagement_rate: parseFloat(formData.engagementRate) || 0,
+        instagram_url: formData.instagramUrl,
+        tiktok_url: formData.tiktokUrl,
+        notes: formData.notes
+      };
+
+      // Check for duplicates locally first
+      if (isDuplicate(influencerData, influencers)) {
+        showNotification('An influencer with this email already exists for this client.', 'error', 'Duplicate Entry');
+        return;
+      }
+
+      const response = await apiService.createInfluencer(influencerData);
+      const newInfluencer = response.influencer;
+
+      // Update local state
+      setInfluencers(prev => [...prev, newInfluencer]);
+      setTodaysInfluencers(prev => [...prev, newInfluencer]);
+
+      // Reset form
+      setFormData({
+        name: '',
+        businessEmail: '',
+        instagramFollowers: '',
+        tiktokFollowers: '',
+        averageViews: '',
+        engagementRate: '',
+        instagramUrl: '',
+        tiktokUrl: '',
+        notes: ''
+      });
+
+      showNotification('Influencer added successfully!', 'success', 'Success');
+    } catch (error) {
+      console.error('Error adding influencer:', error);
+      showNotification(error.message || 'Failed to add influencer.', 'error', 'Error');
+    }
+  };
+
+  const updateInfluencer = async () => {
+    if (!editingInfluencerId) return;
+
+    try {
+      const influencerData = {
+        name: formData.name,
+        business_email: formData.businessEmail,
+        instagram_followers: parseInt(formData.instagramFollowers) || 0,
+        tiktok_followers: parseInt(formData.tiktokFollowers) || 0,
+        average_views: parseInt(formData.averageViews) || 0,
+        engagement_rate: parseFloat(formData.engagementRate) || 0,
+        instagram_url: formData.instagramUrl,
+        tiktok_url: formData.tiktokUrl,
+        notes: formData.notes
+      };
+
+      const response = await apiService.updateInfluencer(editingInfluencerId, influencerData);
+      const updatedInfluencer = response.influencer;
+
+      // Update local state
+      setInfluencers(prev => prev.map(inf => inf.id === editingInfluencerId ? updatedInfluencer : inf));
+      setTodaysInfluencers(prev => prev.map(inf => inf.id === editingInfluencerId ? updatedInfluencer : inf));
+
+      // Reset form and editing state
+      setFormData({
+        name: '',
+        businessEmail: '',
+        instagramFollowers: '',
+        tiktokFollowers: '',
+        averageViews: '',
+        engagementRate: '',
+        instagramUrl: '',
+        tiktokUrl: '',
+        notes: ''
+      });
+      setEditingInfluencerId(null);
+
+      showNotification('Influencer updated successfully!', 'success', 'Success');
+    } catch (error) {
+      console.error('Error updating influencer:', error);
+      showNotification(error.message || 'Failed to update influencer.', 'error', 'Error');
+    }
+  };
+
+  const deleteInfluencerFromTodaysList = async (idToDelete) => {
+    try {
+      await apiService.deleteInfluencer(idToDelete);
+      
+      // Update local state
+      setInfluencers(prev => prev.filter(inf => inf.id !== idToDelete));
+      setTodaysInfluencers(prev => prev.filter(inf => inf.id !== idToDelete));
+      
+      showNotification('Influencer deleted successfully.', 'success', 'Deleted');
+    } catch (error) {
+      console.error('Error deleting influencer:', error);
+      showNotification(error.message || 'Failed to delete influencer.', 'error', 'Error');
+    }
+  };
+
+  const editInfluencer = (influencer) => {
+    setFormData({
+      name: influencer.name,
+      businessEmail: influencer.business_email,
+      instagramFollowers: influencer.instagram_followers.toString(),
+      tiktokFollowers: influencer.tiktok_followers.toString(),
+      averageViews: influencer.average_views.toString(),
+      engagementRate: influencer.engagement_rate.toString(),
+      instagramUrl: influencer.instagram_url,
+      tiktokUrl: influencer.tiktok_url,
+      notes: influencer.notes
+    });
+    setEditingInfluencerId(influencer.id);
+  };
+
+  const cancelEdit = () => {
+    setFormData({
+      name: '',
+      businessEmail: '',
+      instagramFollowers: '',
+      tiktokFollowers: '',
+      averageViews: '',
+      engagementRate: '',
+      instagramUrl: '',
+      tiktokUrl: '',
+      notes: ''
+    });
+    setEditingInfluencerId(null);
+  };
+
+  const handleCsvUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!selectedClient) {
+      showNotification('Please select a client before uploading CSV.', 'error', 'Client Required');
+      event.target.value = '';
+      return;
+    }
+
+    setCsvFile(file);
+    setCsvFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const text = e.target.result;
+      const lines = text.split('\n').filter(line => line.trim() !== '');
+      
+      if (lines.length < 2) {
+        showNotification('CSV file must contain at least a header row and one data row.', 'error', 'Invalid CSV');
+        return;
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim());
+      const influencersData = [];
+      const errors = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        if (values.length !== headers.length) {
+          errors.push(`Row ${i + 1}: Mismatched column count. Skipping.`);
+          continue;
+        }
+
+        const influencerData = headers.reduce((obj, header, index) => {
+          obj[header.replace(/\s/g, '')] = values[index];
+          return obj;
+        }, {});
+
+        const newInfluencer = {
+          client_id: selectedClient,
+          name: influencerData.Name || '',
+          business_email: influencerData.BusinessEmail || '',
+          instagram_followers: parseInt(influencerData.InstagramFollowers) || 0,
+          tiktok_followers: parseInt(influencerData.TikTokFollowers) || 0,
+          average_views: parseInt(influencerData.AverageViews) || 0,
+          engagement_rate: parseFloat(influencerData.EngagementRate) || 0,
+          instagram_url: influencerData.InstagramUrl || '',
+          tiktok_url: influencerData.TikTokUrl || '',
+          notes: influencerData.Notes || ''
+        };
+
+        if (!newInfluencer.name || !newInfluencer.business_email || !newInfluencer.instagram_url || !newInfluencer.tiktok_url) {
+          errors.push(`Row ${i + 1}: Missing Name, Business Email, Instagram URL, or TikTok URL. Skipping.`);
+          continue;
+        }
+
+        if (isDuplicate(newInfluencer, influencers)) {
+          errors.push(`Row ${i + 1}: Influencer with email '${newInfluencer.business_email}' already exists for this client. Skipping.`);
+          continue;
+        }
+
+        influencersData.push(newInfluencer);
+      }
+
+      if (influencersData.length > 0) {
+        try {
+          const results = await apiService.bulkCreateInfluencers(influencersData);
+          
+          if (results.results.length > 0) {
+            // Reload data to get updated list
+            await loadInitialData();
+            showNotification(`${results.results.length} influencers added from CSV!`, 'success', 'Bulk Upload Complete');
+          }
+          
+          if (results.errors.length > 0) {
+            setBulkUploadErrors([...errors, ...results.errors.map(e => e.error)]);
+            showNotification(`Bulk upload completed with ${results.errors.length + errors.length} errors. Check the Bulk Upload tab for details.`, 'warning', 'Partial Success');
+          }
+        } catch (error) {
+          console.error('Bulk upload error:', error);
+          showNotification('Failed to upload influencers.', 'error', 'Upload Error');
+        }
+      } else {
+        setBulkUploadErrors(errors);
+        showNotification('No new influencers were added from the CSV. Check for duplicates or format issues.', 'warning', 'No New Influencers');
+      }
+
+      setCsvFile(null);
+      setCsvFileName('');
+      event.target.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  const submitTodaysProspects = async () => {
+    if (todaysInfluencers.length === 0) {
+      showNotification('No new prospects to submit today.', 'warning', 'Nothing to Submit');
+      return;
+    }
+
+    try {
+      const submissionData = {
+        influencer_ids: todaysInfluencers.map(inf => inf.id),
+        notes: `Submitted ${todaysInfluencers.length} prospects for review`
+      };
+
+      await apiService.createSubmission(submissionData);
+      
+      // Store prospects for notification email before clearing
+      setProspectsToNotify([...todaysInfluencers]);
+      
+      // Reload data to get updated status
+      await loadInitialData();
+      
+      showNotification(`${todaysInfluencers.length} prospects successfully submitted! Admin has been notified.`, 'success', 'Submission Complete');
+      setIsSubmitProspectsDialogOpen(true);
+    } catch (error) {
+      console.error('Error submitting prospects:', error);
+      showNotification(error.message || 'Failed to submit prospects.', 'error', 'Submission Error');
+    }
+  };
+
+  const handleDialogClose = () => {
+    setProspectsToNotify([]);
+    setIsSubmitProspectsDialogOpen(false);
+  };
+
+  const generateMailtoLink = () => {
+    const adminEmail = 'mattbison@apimedia.io';
+    const subject = 'New Influencer Prospects Ready for Review';
+    const body = `Hello Admin,\n\n${prospectsToNotify.length} new influencer prospects have been submitted for review. Please check the Admin Dashboard.\n\nDetails:\n${prospectsToNotify.map(inf => `- ${inf.name} (${inf.business_email}) for ${getClientName(inf.client_id)}`).join('\n')}\n\nThank you!`;
+    return `mailto:${adminEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
+      {alert && (
+        <Notification
+          message={alert.message}
+          type={alert.type}
+          title={alert.title}
+          onClose={() => setAlert(null)}
+        />
+      )}
+
+      <div className="bg-white rounded-lg shadow-sm border p-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Team Portal</h2>
+        <p className="text-gray-600 mb-6">Add and manage influencer prospects for your assigned clients.</p>
+        
+        {userClients.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500">You haven't been assigned to any clients yet. Please contact your admin.</p>
+          </div>
+        ) : (
+          <Tabs defaultValue="add-influencer" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="add-influencer">Add Influencer</TabsTrigger>
+              <TabsTrigger value="bulk-upload">Bulk Upload</TabsTrigger>
+              <TabsTrigger value="todays-list">Today's List ({todaysInfluencers.length})</TabsTrigger>
+              <TabsTrigger value="submission-history">History</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="add-influencer" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <UserPlus className="h-5 w-5" />
+                    <span>{editingInfluencerId ? 'Edit Influencer' : 'Add New Influencer'}</span>
+                  </CardTitle>
+                  <CardDescription>
+                    {editingInfluencerId ? 'Update influencer information' : 'Add a new influencer prospect to your client list'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="client-select">Client *</Label>
+                      <Select value={selectedClient} onValueChange={setSelectedClient} disabled={editingInfluencerId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a client" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {userClients.map((client) => (
+                            <SelectItem key={client.id} value={client.id.toString()}>
+                              {client.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Influencer Name *</Label>
+                      <Input
+                        id="name"
+                        placeholder="Enter influencer name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="business-email">Business Email *</Label>
+                      <Input
+                        id="business-email"
+                        type="email"
+                        placeholder="Enter business email"
+                        value={formData.businessEmail}
+                        onChange={(e) => setFormData({...formData, businessEmail: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="engagement-rate">Engagement Rate (%)</Label>
+                      <Input
+                        id="engagement-rate"
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g., 3.5"
+                        value={formData.engagementRate}
+                        onChange={(e) => setFormData({...formData, engagementRate: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="instagram-followers">Instagram Followers</Label>
+                      <Input
+                        id="instagram-followers"
+                        type="number"
+                        placeholder="e.g., 50000"
+                        value={formData.instagramFollowers}
+                        onChange={(e) => setFormData({...formData, instagramFollowers: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="tiktok-followers">TikTok Followers</Label>
+                      <Input
+                        id="tiktok-followers"
+                        type="number"
+                        placeholder="e.g., 75000"
+                        value={formData.tiktokFollowers}
+                        onChange={(e) => setFormData({...formData, tiktokFollowers: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="average-views">Average Views</Label>
+                      <Input
+                        id="average-views"
+                        type="number"
+                        placeholder="e.g., 10000"
+                        value={formData.averageViews}
+                        onChange={(e) => setFormData({...formData, averageViews: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="instagram-url">Instagram URL *</Label>
+                      <Input
+                        id="instagram-url"
+                        placeholder="https://instagram.com/username"
+                        value={formData.instagramUrl}
+                        onChange={(e) => setFormData({...formData, instagramUrl: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="tiktok-url">TikTok URL *</Label>
+                      <Input
+                        id="tiktok-url"
+                        placeholder="https://tiktok.com/@username"
+                        value={formData.tiktokUrl}
+                        onChange={(e) => setFormData({...formData, tiktokUrl: e.target.value})}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Notes</Label>
+                    <Textarea
+                      id="notes"
+                      placeholder="Any additional notes about this influencer..."
+                      value={formData.notes}
+                      onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="flex space-x-2">
+                    {editingInfluencerId ? (
+                      <>
+                        <Button onClick={updateInfluencer} className="flex-1">
+                          Update Influencer
+                        </Button>
+                        <Button onClick={cancelEdit} variant="outline">
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <Button onClick={addInfluencer} className="flex-1">
+                        Add Influencer
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="bulk-upload" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Upload className="h-5 w-5" />
+                    <span>Bulk Upload Influencers</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Upload multiple influencers at once using a CSV file
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="client-select-bulk">Client *</Label>
+                    <Select value={selectedClient} onValueChange={setSelectedClient}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a client for bulk upload" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {userClients.map((client) => (
+                          <SelectItem key={client.id} value={client.id.toString()}>
+                            {client.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="csv-upload">CSV File</Label>
+                    <Input
+                      id="csv-upload-input"
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCsvUpload}
+                      className="cursor-pointer"
+                    />
+                    {csvFileName && (
+                      <p className="text-sm text-gray-600">Selected: {csvFileName}</p>
+                    )}
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-gray-900 mb-2">CSV Format Requirements:</h4>
+                    <p className="text-sm text-gray-600 mb-2">Your CSV file should have the following columns (header row required):</p>
+                    <code className="text-xs bg-white p-2 rounded border block">
+                      Name,BusinessEmail,InstagramFollowers,TikTokFollowers,AverageViews,EngagementRate,InstagramUrl,TikTokUrl,Notes
+                    </code>
+                    <p className="text-xs text-gray-500 mt-2">
+                      * Name, BusinessEmail, InstagramUrl, and TikTokUrl are required fields
+                    </p>
+                  </div>
+
+                  {bulkUploadErrors.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <h4 className="font-medium text-red-800 mb-2">Upload Errors:</h4>
+                      <ul className="text-sm text-red-700 space-y-1">
+                        {bulkUploadErrors.map((error, index) => (
+                          <li key={index}>• {error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="todays-list" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <span>Today's Prospects ({todaysInfluencers.length})</span>
+                    </div>
+                    {todaysInfluencers.length > 0 && (
+                      <Button onClick={submitTodaysProspects} className="flex items-center space-x-2">
+                        <Send className="h-4 w-4" />
+                        <span>Submit All Prospects</span>
+                      </Button>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    Influencers added today that haven't been submitted yet
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {todaysInfluencers.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <UserPlus className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>No new prospects added today.</p>
+                      <p className="text-sm">Add some influencers to get started!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {todaysInfluencers.map((influencer) => (
+                        <div key={influencer.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2 mb-2">
+                                <h3 className="font-medium text-gray-900">{influencer.name}</h3>
+                                <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                  {getClientName(influencer.client_id)}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-2">{influencer.business_email}</p>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                <div>
+                                  <span className="text-gray-500">Instagram:</span>
+                                  <p className="font-medium">{influencer.instagram_followers?.toLocaleString() || 0} followers</p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">TikTok:</span>
+                                  <p className="font-medium">{influencer.tiktok_followers?.toLocaleString() || 0} followers</p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Avg Views:</span>
+                                  <p className="font-medium">{influencer.average_views?.toLocaleString() || 0}</p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Engagement:</span>
+                                  <p className="font-medium">{influencer.engagement_rate || 0}%</p>
+                                </div>
+                              </div>
+                              {influencer.notes && (
+                                <p className="text-sm text-gray-600 mt-2 italic">{influencer.notes}</p>
+                              )}
+                            </div>
+                            <div className="flex space-x-2 ml-4">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => editInfluencer(influencer)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => deleteInfluencerFromTodaysList(influencer.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="submission-history" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <History className="h-5 w-5" />
+                    <span>Submission History</span>
+                  </CardTitle>
+                  <CardDescription>
+                    View your past submissions and their status
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {submissions.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <History className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>No submissions yet.</p>
+                      <p className="text-sm">Submit some prospects to see them here!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {submissions.map((submission) => (
+                        <div key={submission.id} className="border rounded-lg p-4">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h3 className="font-medium text-gray-900">
+                                Submission #{submission.id}
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                {new Date(submission.submission_date).toLocaleDateString()} - {submission.influencer_count} prospects
+                              </p>
+                            </div>
+                            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
+                              Submitted
+                            </span>
+                          </div>
+                          {submission.notes && (
+                            <p className="text-sm text-gray-600 italic">{submission.notes}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
+      </div>
+
+      {/* Submit Prospects Dialog */}
+      <Dialog open={isSubmitProspectsDialogOpen} onOpenChange={setIsSubmitProspectsDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <span>Prospects Submitted!</span>
+            </DialogTitle>
+            <DialogDescription>
+              Your prospects have been successfully submitted for admin review.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <p className="text-sm text-green-800">
+                <strong>{prospectsToNotify.length} prospects</strong> have been submitted and are now pending admin review.
+              </p>
+            </div>
+            <div className="flex space-x-2">
+              <Button asChild className="flex-1">
+                <a href={generateMailtoLink()} className="flex items-center justify-center space-x-2">
+                  <Mail className="h-4 w-4" />
+                  <span>Notify Admin</span>
+                </a>
+              </Button>
+              <DialogClose asChild>
+                <Button variant="outline" onClick={handleDialogClose}>
+                  Close
+                </Button>
+              </DialogClose>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default TeamPortal;
   }, [influencers]);
 
   useEffect(() => {
@@ -445,7 +1204,7 @@ const TeamPortal = () => {
                   <Input id="tiktokFollowers" name="tiktokFollowers" value={formData.tiktokFollowers} onChange={handleInputChange} placeholder="0" type="number" className="h-10 text-base" />
                 </div>
                 <div>
-                  <Label htmlFor="averageViews" className="text-base font-medium mb-2 block">Average Views (Last 10 Posts )</Label>
+                  <Label htmlFor="averageViews" className="text-base font-medium mb-2 block">Average Views (Last 10 Posts)</Label>
                   <Input id="averageViews" name="averageViews" value={formData.averageViews} onChange={handleInputChange} placeholder="0" type="number" className="h-10 text-base" />
                 </div>
                 <div>
@@ -533,10 +1292,12 @@ const TeamPortal = () => {
                   ))}
                 </div>
               )}
-              <Dialog open={isSubmitProspectsDialogOpen} onOpenChange={setIsSubmitProspectsDialogOpen}> { /* Keep dialog open until explicitly closed by user */ }
-                <Button onClick={submitTodaysProspects} disabled={todaysInfluencers.length === 0} className="w-full py-3 text-lg font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors duration-200">
-                  <Send className="h-5 w-5 mr-2" /> Submit New Prospects
-                </Button>
+              <Dialog open={isSubmitProspectsDialogOpen} onOpenChange={setIsSubmitProspectsDialogOpen}> {/* Keep dialog open until explicitly closed by user */}
+                <DialogTrigger asChild>
+                  <Button onClick={submitTodaysProspects} disabled={todaysInfluencers.length === 0} className="w-full py-3 text-lg font-semibold bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors duration-200">
+                    <Send className="h-5 w-5 mr-2" /> Submit New Prospects
+                  </Button>
+                </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px] p-6">
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-bold">Prospects Submitted!</DialogTitle>
@@ -561,7 +1322,7 @@ const TeamPortal = () => {
                   </div>
                   <DialogFooter>
                     <DialogClose asChild>
-                      <Button type="button" variant="secondary" className="py-3 text-lg" onClick={handleDialogClose}> { /* Call handleDialogClose on explicit close */ }
+                      <Button type="button" variant="secondary" className="py-3 text-lg" onClick={handleDialogClose}> {/* Call handleDialogClose on explicit close */}
                         Close
                       </Button>
                     </DialogClose>
@@ -607,3 +1368,5 @@ const TeamPortal = () => {
 };
 
 export default TeamPortal;
+
+
