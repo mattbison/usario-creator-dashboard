@@ -1,7 +1,5 @@
 // API service for Usario Creators
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://your-backend-url.com' 
-  : 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 class ApiService {
   constructor() {
